@@ -1,11 +1,11 @@
-# JusBrowse GeckoView - The peak customisation and protective Browser for Android
+# JusBrowse — The Stealth-First Privacy Browser for Android
 
-[![Status](https://img.shields.io/badge/Status-Alpha%206.5-orange.svg)]()
+[![Status](https://img.shields.io/badge/Status-Alpha%206.3-orange.svg)]()
 [![Engine](https://img.shields.io/badge/Engine-GeckoView-blue.svg)]()
 [![Privacy](https://img.shields.io/badge/Privacy-Hardened-green.svg)]()
 [![License](https://img.shields.io/badge/License-GPL%20v3-red.svg)](LICENSE)
 
-**JusBrowse** is a high-security, privacy-hardened web browser for Android. Built on the **GeckoView** engine (the foundation of Firefox), it is designed to provide full protection for borwsing and also providing full customisation that standard Chromium-based browsers cannot achieve.
+**JusBrowse** is a high-security, privacy-hardened web browser for Android. Built on the **GeckoView** engine (the foundation of Firefox), it is designed to provide "Tor-style" fingerprinting resistance, privacy-safe analytics, and deep engine-level isolation that standard Chromium-based browsers cannot achieve.
 
 > "Privacy is not a checkbox; it’s a war. Every API output can pull off the entire mask."
 
@@ -14,8 +14,8 @@
 ## 🛡️ Core Pillars
 
 - **GeckoView Powered**: Unlike the system WebView, GeckoView allows for total control over the network stack, rendering characteristics, and privacy flags.
-- **Fingerprinting Resistance**: Systematic normalization of high-entropy APIs (Canvas, Audio, WebGL, Screen, Locale) to match generic flagship profiles (JusFake engine).
-- **Telemetry**: daily use analytics and install counts only, no device info is shared.
+- **Fingerprinting Resistance**: Systematic normalization of high-entropy APIs (Canvas, Audio, WebGL, Screen, Locale) to match generic flagship profiles (powered by the JusFake engine).
+- **Privacy-Safe Analytics**: Minimalist, opt-out telemetry using a privacy-first Supabase backend. We only track installation and daily streaks to improve the app—no device fingerprinting or browsing data ever leaves your device.
 - **Persona Isolation**: Create distinct "Golden Profiles" (e.g., Pixel 8 Pro). Each persona runs in a strictly isolated Gecko session with its own cookie jar and storage context.
 
 ---
@@ -60,3 +60,4 @@ Licensed under the **GNU General Public License v3.0** or later. See [LICENSE](L
 
 ---
 *Developed by JusDots with passion for a free and private internet.*
+

@@ -35,7 +35,13 @@ const HARDCODED_BLOCKED = new Set([
 
 const BLOCKED_DOMAINS = new Set(HARDCODED_BLOCKED);
 const BLOCKED_PATHS = [];
+const COSMETIC_RULES = {
+    global: new Set(),
+    domainSpecific: new Map(), // domain -> Set
+    exceptions: new Map()      // domain -> Set
+};
 let adBlockState = true;
+let advancedAdBlockState = false;
 let isBlocklistLoaded = false;
 
 // Initialize the blocklist dynamically
@@ -47,7 +53,37 @@ async function loadBlocklist() {
         let count = 0;
         for (let line of lines) {
             line = line.trim();
-            if (!line || line.startsWith('!') || line.startsWith('#')) continue;
+            if (!line || line.startsWith('!')) continue;
+
+            // ═══ COSMETIC FILTERING (ELEMENT HIDING) ═══
+            if (line.includes('##') || line.includes('#@#')) {
+                const isException = line.includes('#@#');
+                const separator = isException ? '#@#' : '##';
+                const parts = line.split(separator);
+                const domains = parts[0] ? parts[0].split(',') : [''];
+                const selector = parts[1];
+
+                if (!selector || selector.startsWith('+js(')) continue;
+
+                for (let domain of domains) {
+                    domain = domain.trim().toLowerCase();
+                    if (isException) {
+                        if (!COSMETIC_RULES.exceptions.has(domain)) COSMETIC_RULES.exceptions.set(domain, new Set());
+                        COSMETIC_RULES.exceptions.get(domain).add(selector);
+                    } else {
+                        if (domain === '') {
+                            COSMETIC_RULES.global.add(selector);
+                        } else {
+                            if (!COSMETIC_RULES.domainSpecific.has(domain)) COSMETIC_RULES.domainSpecific.set(domain, new Set());
+                            COSMETIC_RULES.domainSpecific.get(domain).add(selector);
+                        }
+                    }
+                }
+                count++;
+                continue;
+            }
+
+            if (line.startsWith('#')) continue;
             
             const cleanLine = line.split('$')[0].toLowerCase();
             if (cleanLine.startsWith('||') && cleanLine.endsWith('^')) {
@@ -125,10 +161,82 @@ browser.webRequest.onBeforeSendHeaders.addListener(
             }
             return header;
         });
+        
+        // Inject GPC signal
+        headers.push({ name: 'Sec-GPC', value: '1' });
+        
         return { requestHeaders: headers };
     },
     { urls: ["<all_urls>"] },
     ["blocking", "requestHeaders"]
+);
+
+// ═══ CSP INJECTION (Advanced ADBlock) ═══
+browser.webRequest.onHeadersReceived.addListener(
+    (details) => {
+        if (!advancedAdBlockState) return {};
+        
+        const responseHeaders = details.responseHeaders;
+        const contentTypeHeader = responseHeaders.find(h => h.name.toLowerCase() === 'content-type');
+        const contentType = (contentTypeHeader ? contentTypeHeader.value : '').toLowerCase();
+        
+        // Only inject CSP on HTML documents
+        if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+            return {};
+        }
+
+        // Check if site already has CSP (respect their choices to avoid breakage)
+        const existingCSP = responseHeaders.find(h => h.name.toLowerCase() === 'content-security-policy');
+        if (existingCSP) return {};
+
+        const cspHeader = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+            "style-src 'self' 'unsafe-inline' https:",
+            "img-src 'self' data: https:",
+            "font-src 'self' data: https:",
+            "connect-src 'self' https:",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "frame-ancestors 'self'",
+            "form-action 'self' https:",
+            "frame-src 'self' https:",
+            "media-src 'self' https:"
+        ].join('; ');
+        
+        responseHeaders.push({
+            name: 'Content-Security-Policy',
+            value: cspHeader
+        });
+        
+        return { responseHeaders: responseHeaders };
+    },
+    { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] },
+    ["blocking", "responseHeaders"]
+);
+
+// ═══ RESPONSE HEADER STRIPPING (Strip tracker cookies/analytics) ═══
+browser.webRequest.onHeadersReceived.addListener(
+    (details) => {
+        if (!adBlockState) return {};
+
+        try {
+            const url = new URL(details.url);
+            const host = url.hostname.toLowerCase();
+
+            // ONLY strip headers if the domain is a known tracker
+            if (isDomainBlocked(host)) {
+                const stripHeaders = ['set-cookie', 'x-analytics', 'x-tracking-id', 'x-ad-id'];
+                const responseHeaders = details.responseHeaders.filter(h => {
+                    return !stripHeaders.includes(h.name.toLowerCase());
+                });
+                return { responseHeaders: responseHeaders };
+            }
+        } catch (e) { }
+        return {};
+    },
+    { urls: ["<all_urls>"] },
+    ["blocking", "responseHeaders"]
 );
 
 // ═══ NATIVE SYNC ═══
@@ -142,6 +250,19 @@ function connectToNative() {
                 browser.storage.local.set({ adBlockEnabled: adBlockState });
             } else if (message.type === "extract_media") {
                 handleMediaExtraction();
+            } else if (message.type === "set_advanced_adblock") {
+                advancedAdBlockState = message.enabled;
+                browser.storage.local.set({ advancedAdBlockEnabled: advancedAdBlockState });
+            } else if (message.type === "toggle_boomer") {
+                // Forward Boomer Mode toggle to ALL tabs
+                browser.tabs.query({}).then(tabs => {
+                    tabs.forEach(tab => {
+                        browser.tabs.sendMessage(tab.id, { 
+                            type: "toggle_boomer", 
+                            enabled: message.enabled 
+                        }).catch(() => {}); // Ignore errors for tabs without content scripts
+                    });
+                });
             }
         });
         appPort.onDisconnect.addListener(() => {
@@ -153,6 +274,39 @@ function connectToNative() {
     }
 }
 connectToNative();
+
+// ═══ CONTENT SCRIPT MESSAGING ═══
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "get_cosmetic_rules") {
+        const host = message.host ? message.host.toLowerCase() : "";
+        const selectors = new Set(COSMETIC_RULES.global);
+        
+        // Add domain-specific rules
+        if (host) {
+            const parts = host.split(".");
+            for (let i = 0; i <= parts.length - 2; i++) {
+                const domain = parts.slice(i).join(".");
+                const domainRules = COSMETIC_RULES.domainSpecific.get(domain);
+                if (domainRules) {
+                    domainRules.forEach(s => selectors.add(s));
+                }
+                
+                // Remove exceptions
+                const domainExceptions = COSMETIC_RULES.exceptions.get(domain);
+                if (domainExceptions) {
+                    domainExceptions.forEach(s => selectors.delete(s));
+                }
+            }
+        }
+        
+        sendResponse({ selectors: Array.from(selectors) });
+        return true;
+    } else if (message.type === "is_tracker_domain") {
+        const host = message.domain ? message.domain.toLowerCase() : "";
+        sendResponse({ isTrackerDomain: isDomainBlocked(host) });
+        return true;
+    }
+});
 
 // ═══ HELPERS ═══
 function isDomainBlocked(host) {
@@ -182,17 +336,50 @@ function isPathBlocked(path) {
 }
 
 async function handleMediaExtraction() {
+    console.log("Airlock: Starting media extraction...");
     try {
-        const tabs = await browser.tabs.query({ active: true, windowId: browser.windows.WINDOW_ID_CURRENT });
-        if (!tabs || tabs.length === 0) return;
-        const response = await browser.tabs.sendMessage(tabs[0].id, { type: "extractMedia" });
-        if (response && appPort) {
-            appPort.postMessage({ type: "media_extracted", media: response });
+        // Use active: true instead of WINDOW_ID_CURRENT which is unreliable in background scripts
+        const tabs = await browser.tabs.query({ active: true });
+        console.log(`Airlock: Found ${tabs ? tabs.length : 0} active tabs.`);
+        
+        if (!tabs || tabs.length === 0) {
+            // Fallback: Query all tabs if no active tab found
+            const allTabs = await browser.tabs.query({});
+            console.log(`Airlock Fallback: Found ${allTabs.length} total tabs.`);
+            if (allTabs.length > 0) {
+                broadcastToTabs(allTabs);
+            }
+            return;
         }
-    } catch (e) { }
+        
+        broadcastToTabs(tabs);
+    } catch (e) {
+        console.error("Airlock Error:", e);
+    }
+}
+
+function broadcastToTabs(tabs) {
+    tabs.forEach(tab => {
+        console.log(`Airlock: Sending extractMedia to tab ${tab.id}`);
+        browser.tabs.sendMessage(tab.id, { type: "extractMedia" })
+            .then(response => {
+                if (response) {
+                    console.log(`Airlock: Received media from tab ${tab.id}`);
+                    if (appPort) {
+                        appPort.postMessage({ type: "media_extracted", media: response });
+                    }
+                } else {
+                    console.warn(`Airlock: Empty response from tab ${tab.id}`);
+                }
+            })
+            .catch(err => {
+                console.error(`Airlock: Failed to send to tab ${tab.id}`, err);
+            });
+    });
 }
 
 // Ensure toggle persists
-browser.storage.local.get("adBlockEnabled").then(res => {
+browser.storage.local.get(["adBlockEnabled", "advancedAdBlockEnabled"]).then(res => {
     if (res.adBlockEnabled !== undefined) adBlockState = res.adBlockEnabled;
+    if (res.advancedAdBlockEnabled !== undefined) advancedAdBlockState = res.advancedAdBlockEnabled;
 });

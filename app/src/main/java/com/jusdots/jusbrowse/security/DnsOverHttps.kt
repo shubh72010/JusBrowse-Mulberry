@@ -14,11 +14,18 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class DnsOverHttps(private val client: OkHttpClient) : Dns {
     private val dohUrl = "https://cloudflare-dns.com/dns-query".toHttpUrl()
-    private val cache = ConcurrentHashMap<String, List<InetAddress>>()
+    private data class CacheEntry(val addresses: List<InetAddress>, val expiry: Long)
+    private val cache = ConcurrentHashMap<String, CacheEntry>()
 
     override fun lookup(hostname: String): List<InetAddress> {
         // 1. Fast cache check
-        cache[hostname]?.let { return it }
+        cache[hostname]?.let { entry ->
+            if (System.currentTimeMillis() < entry.expiry) {
+                return entry.addresses
+            } else {
+                cache.remove(hostname)
+            }
+        }
 
         // 2. Perform DoH resolution
         try {
@@ -34,29 +41,30 @@ class DnsOverHttps(private val client: OkHttpClient) : Dns {
                 val json = org.json.JSONObject(body)
                 val answer = json.optJSONArray("Answer")
                 
-                val results = mutableListOf<InetAddress>()
                 if (answer != null) {
+                    var minTtl = 60
+                    val results = mutableListOf<InetAddress>()
                     for (i in 0 until answer.length()) {
                         val obj = answer.getJSONObject(i)
                         if (obj.optInt("type") == 1) { // Type A (IPv4)
                             val ip = obj.getString("data")
                             results.add(InetAddress.getByName(ip))
+                            if (obj.has("TTL")) {
+                                val ttl = obj.getInt("TTL")
+                                if (ttl < minTtl || minTtl == 60) minTtl = ttl // Use shortest TTL
+                            }
                         }
                     }
-                }
-
-                if (results.isNotEmpty()) {
-                    cache[hostname] = results
-                    return results
+                    if (results.isNotEmpty()) {
+                        val expiry = System.currentTimeMillis() + (minTtl * 1000L)
+                        cache[hostname] = CacheEntry(results, expiry)
+                        return results
+                    }
                 }
             }
         } catch (e: Exception) {
-            // Fallback to system DNS if DoH fails to avoid breaking connectivity
-            try {
-                return Dns.SYSTEM.lookup(hostname)
-            } catch (se: UnknownHostException) {
-                throw se
-            }
+            // Refusing system DNS fallback to prevent DNS leaks
+            throw java.io.IOException("DoH resolution failed — refusing system DNS fallback")
         }
 
         throw UnknownHostException("Could not resolve $hostname via DoH or System")

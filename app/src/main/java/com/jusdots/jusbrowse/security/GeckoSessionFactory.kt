@@ -8,6 +8,9 @@ import org.mozilla.geckoview.GeckoSessionSettings
  * Factory for creating and initializing GeckoSessions.
  */
 object GeckoSessionFactory {
+    
+    @Volatile
+    var follianModeActive: Boolean = false
 
     fun createSession(
         isPrivate: Boolean = false,
@@ -18,10 +21,15 @@ object GeckoSessionFactory {
             .useTrackingProtection(true)
             .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_MOBILE)
             .suspendMediaWhenInactive(true)
-            .allowJavascript(true)
-            .userAgentOverride("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0")
+            .allowJavascript(!follianModeActive) // Follian disables JS
+            // Android mobile Tor-style UA: keeps appVersion/oscpu/platform consistent at engine level.
+            // Desktop UA caused a contradiction (appVersion="Android 16", UA="Windows NT 10.0").
+            .userAgentOverride("Mozilla/5.0 (Android 10; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0")
 
-
+        // Follian additional restrictions
+        if (follianModeActive) {
+            // These can be fine-tuned; allowJavascript covers the main case
+        }
 
         // Container isolation via contextual identity
         if (containerId != null) {
@@ -32,8 +40,6 @@ object GeckoSessionFactory {
         
         // Setup Native Feature Protection (EasyPrivacy equivalent)
         session.settings.useTrackingProtection = true
-        // Note: Strict Native blocking
-        val runtimeSettings = BrowserApplication.runtime?.settings
         
         // Open the session with the global runtime
         val runtime = BrowserApplication.runtime 

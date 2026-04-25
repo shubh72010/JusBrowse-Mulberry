@@ -399,7 +399,7 @@ fun BrowserScreen(
                             viewModel.showGallery = false
                         },
                         onClose = { viewModel.closeAirlock() },
-                        modifier = Modifier.align(Alignment.Center) 
+                        modifier = Modifier.fillMaxSize() 
                     )
                 }
 

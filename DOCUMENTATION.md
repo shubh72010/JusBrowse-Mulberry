@@ -1,4 +1,4 @@
-# JusBrowse: Technical Documentation (Alpha 6 / v0.0.6)
+# JusBrowse: Technical Documentation (based on Alpha 6 test 2 / v0.0.6-T2)
 
 ## 1. Overview
 JusBrowse is a high-security, privacy-focused Android web browser built with Jetpack Compose. It is a **GeckoView-based** browser, employing advanced techniques typically found in anti-detect browsers or cybersecurity research tools to protect user identity and prevent fingerprinting.
@@ -51,8 +51,8 @@ graph TD
 ### 🎨 Premium User Experience
 *   **Freeform Workspace**: A desktop-like multi-view mode where tabs appear as draggable, resizable windows.
 *   **Airlock Media System**: A powerful media extractor that pulls images, videos, and audio from any page into a clean, glassmorphic gallery for viewing or downloading.
-*   **Glassmorphism UI**: High-fidelity interface using translucency, blur effects, and smooth animations (Material 3 Expressive).
-*   **Sticker Start Page**: A customizable home screen where users can add interactive widgets and shortcuts.
+*   **Glassmorphism inspired UI**: High-fidelity interface using translucency, and smooth animations (Material 3 Expressive).
+*   **Stickers at Start Page**: A customizable home screen where users can add interactive widgets and shortcuts.
 
 ---
 
@@ -77,16 +77,51 @@ JusBrowse utilizes gecko sessions with distinct `contextId` values. This ensures
 ---
 
 ## 5. Security Protocols
-*   **Stealth Mimicry**: Never uses "fixed" values that are easily flaggable. Instead, it mimics real device variance.
-*   **No-Telemetry Policy**: 100% offline-first. No analytics or tracking data ever leaves the device. GeckoView's internal telemetry is explicitly disabled.
+*   **Telemetry Policy**: No behavioral tracking, analytics, or user profiling (no Google Analytics, 
+    Firebase, or Sentry). We collect:
+**Install Events** (non-opt-out): Sent on first app launch. Contains only 
+   installation ping (if app is installed)
+    - **Daily Active User** (opt-out): Anonymous "user opened app today"
+    
+    All metrics are anonymized and sent to the developer's firebase database. 
+    Opt-out available in Settings, under "privacy" section.
 *   **HTTPS Enforcement**: Native HTTPS-only mode enforced via GeckoRuntime.
 
 ---
 
-## 6. Glossary of Components
-*   **`GeckoWebView.kt`**: A custom wrapper around GeckoView providing the primary browsing interface.
-*   **`AddressBarWithGeckoView.kt`**: The combination address bar and engine view for single-tab browsing.
-*   **`FreeformWorkspace.kt`**: Implements the drag-and-drop multi-view window logic.
-*   **`AirlockGallery.kt`**: The UI for viewing extracted media.
-*   **`PrivacyBus.kt`**: The central coordinator for data "glow" and flattening.
-*   **`BrowserMessageDelegate.kt`**: Handles communication between WebExtensions and the native app.
+## 6. Core Security Modules
+
+### 🩺 NetworkSurgeon (`NetworkSurgeon.kt`)
+The **NetworkSurgeon** is the gatekeeper of the network stack. It interfaces directly with the `GeckoRuntime` to:
+- **Header Surgery**: Strip tracking headers (Referer, ETag) and inject persona-consistent Client-Hints.
+- **Protocol Enforcement**: Force HSTS and upgrade all insecure requests to HTTPS.
+- **Stealth Routing**: Coordinates with the global DoH settings.
+
+### 🎭 FakeModeManager (`FakeModeManager.kt`)
+The brain behind the persona system. It handles:
+- **Persona Lifecycle**: Loading, saving, and switching between "Golden Profiles."
+- **Session Randomization**: Generates stable session seeds for noise injection and randomizes native bridge names.
+- **State Drift**: Simulates realistic battery drain and charging status for the Javascript Battery API.
+
+### 🚌 PrivacyBus (`PrivacyBus.kt`)
+The central communication hub that links the native Kotlin logic with the Javascript injection layer.
+- **Packet Delivery**: Sends `PrivacyPacket` data (Screen, UA, Hardware signatures) to the WebExtension.
+- **Event Forwarding**: Relays security alerts (Suspicion Points) back to the `SuspicionScorer`.
+
+### 👻 GhostCookieJar (`GhostCookieJar.kt`)
+A specialized cookie manager that prevents persistent tracking.
+- **Volatile Storage**: Ensures that cookies for restricted personas are never written to disk, remaining in-memory only.
+- **Context Isolation**: Leverages GeckoView's `contextId` to keep tab data strictly partitioned.
+
+---
+
+## 7. Glossary of Key Files
+
+| File | Responsibility |
+| :--- | :--- |
+| **`GeckoWebView.kt`** | Custom wrapper around GeckoView providing the primary browsing interface. |
+| **`FakeModeManager.kt`** | Manages personas, session seeds, and bridge randomization. |
+| **`content.js`** | The "Shield." Injected at `document_start` to sanitize and spoof JS APIs. |
+| **`AirlockDiscoveryBus.kt`** | Orchestrates the extraction of media from the rendered DOM. |
+| **`FreeformWorkspace.kt`** | Desktop-like multi-view logic for draggable browser windows. |
+| **`SuspicionScorer.kt`** | Tracks trackers. High "Suspicion Points" can trigger an automatic Airlock or Reset. |

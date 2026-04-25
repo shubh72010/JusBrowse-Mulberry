@@ -23,6 +23,7 @@ class PreferencesRepository(private val context: Context) {
         val SAVED_WINDOW_STATES = stringPreferencesKey("saved_window_states")
         val ACTIVE_TAB_INDEX = stringPreferencesKey("active_tab_index")
         val AD_BLOCK_ENABLED = booleanPreferencesKey("ad_block_enabled")
+        val ADVANCED_ADBLOCK_ENABLED = booleanPreferencesKey("advanced_adblock_enabled")
         val HTTPS_ONLY = booleanPreferencesKey("https_only")
         val FLAG_SECURE_ENABLED = booleanPreferencesKey("flag_secure_enabled")
         val DO_NOT_TRACK_ENABLED = booleanPreferencesKey("do_not_track_enabled")
@@ -42,6 +43,7 @@ class PreferencesRepository(private val context: Context) {
         val START_PAGE_WALLPAPER_URI = stringPreferencesKey("start_page_wallpaper_uri")
         val START_PAGE_BLUR_AMOUNT = stringPreferencesKey("start_page_blur_amount")
         val CUSTOM_DOH_URL = stringPreferencesKey("custom_doh_url")
+        val CUSTOM_SEARCH_ENGINE_URL = stringPreferencesKey("custom_search_engine_url")
         
         // Engines
         val DEFAULT_ENGINE_ENABLED = booleanPreferencesKey("default_engine_enabled")
@@ -57,6 +59,12 @@ class PreferencesRepository(private val context: Context) {
         val CACHE_POLICY_WIPE_ON_FULL = booleanPreferencesKey("cache_policy_wipe_on_full")
         val CACHE_POLICY_LRU = booleanPreferencesKey("cache_policy_lru")
         val BOOMER_MODE_ENABLED = booleanPreferencesKey("boomer_mode_enabled")
+        
+        // Analytics
+        val ANALYTICS_ENABLED = booleanPreferencesKey("analytics_enabled")
+        val ANALYTICS_USER_ID = stringPreferencesKey("analytics_user_id")
+        val ANALYTICS_LAST_SYNC_DATE = stringPreferencesKey("analytics_last_sync_date")
+        val ANALYTICS_LAST_SYNC_SUCCESS = booleanPreferencesKey("analytics_last_sync_success")
     }
 
     val searchEngine: Flow<String> = context.dataStore.data.map { preferences ->
@@ -91,6 +99,10 @@ class PreferencesRepository(private val context: Context) {
 
     val adBlockEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.AD_BLOCK_ENABLED] ?: true
+    }
+
+    val advancedAdBlockEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ADVANCED_ADBLOCK_ENABLED] ?: false
     }
 
     val httpsOnly: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -133,6 +145,10 @@ class PreferencesRepository(private val context: Context) {
         preferences[PreferenceKeys.CUSTOM_DOH_URL] ?: ""
     }
 
+    val customSearchEngineUrl: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.CUSTOM_SEARCH_ENGINE_URL] ?: ""
+    }
+
     suspend fun setSearchEngine(searchEngine: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.SEARCH_ENGINE] = searchEngine
@@ -168,6 +184,12 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setAdBlockEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.AD_BLOCK_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setAdvancedAdBlockEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.ADVANCED_ADBLOCK_ENABLED] = enabled
         }
     }
 
@@ -238,6 +260,12 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setCustomDohUrl(url: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.CUSTOM_DOH_URL] = url
+        }
+    }
+
+    suspend fun setCustomSearchEngineUrl(url: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.CUSTOM_SEARCH_ENGINE_URL] = url
         }
     }
 
@@ -449,6 +477,46 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setBoomerModeEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.BOOMER_MODE_ENABLED] = enabled
+        }
+    }
+
+    val analyticsEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ANALYTICS_ENABLED] ?: true
+    }
+
+    suspend fun setAnalyticsEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.ANALYTICS_ENABLED] = enabled
+        }
+    }
+
+    val analyticsUserId: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ANALYTICS_USER_ID]
+    }
+
+    suspend fun setAnalyticsUserId(userId: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.ANALYTICS_USER_ID] = userId
+        }
+    }
+
+    val analyticsLastSyncDate: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_DATE]
+    }
+
+    suspend fun setAnalyticsLastSyncDate(date: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_DATE] = date
+        }
+    }
+
+    val analyticsLastSyncSuccess: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_SUCCESS] ?: false
+    }
+
+    suspend fun setAnalyticsLastSyncSuccess(success: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_SUCCESS] = success
         }
     }
 }

@@ -78,7 +78,7 @@ fun TabWindow(
         viewModel.updateWindowScale(tab.id, scale)
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().zIndex(windowState.zIndex)) {
         val maxWidthPx = constraints.maxWidth.toFloat()
         val maxHeightPx = constraints.maxHeight.toFloat()
         val density = androidx.compose.ui.platform.LocalDensity.current
@@ -88,7 +88,6 @@ fun TabWindow(
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                .zIndex(windowState.zIndex)
                 .size(360.dp * scale, 600.dp * scale)
                 .shadow(16.dp, RoundedCornerShape(28.dp))
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp))

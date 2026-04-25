@@ -1,5 +1,6 @@
 package com.jusdots.jusbrowse.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -56,6 +57,7 @@ import com.jusdots.jusbrowse.ui.theme.BrowserTheme
 import com.jusdots.jusbrowse.ui.theme.AppFont
 import com.jusdots.jusbrowse.ui.theme.BackgroundPreset
 import com.jusdots.jusbrowse.ui.viewmodel.BrowserViewModel
+import com.jusdots.jusbrowse.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,15 +69,18 @@ fun SettingsScreen(
     val javascriptEnabled by viewModel.javascriptEnabled.collectAsStateWithLifecycle(initialValue = true)
     val darkMode by viewModel.darkMode.collectAsStateWithLifecycle(initialValue = false)
     val adBlockEnabled by viewModel.adBlockEnabled.collectAsStateWithLifecycle(initialValue = true)
+    val advancedAdBlockEnabled by viewModel.advancedAdBlockEnabled.collectAsStateWithLifecycle(initialValue = false)
     val httpsOnly by viewModel.httpsOnly.collectAsStateWithLifecycle(initialValue = false)
     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsStateWithLifecycle(initialValue = true)
     val doNotTrackEnabled by viewModel.doNotTrackEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val analyticsEnabled by viewModel.analyticsEnabled.collectAsStateWithLifecycle(initialValue = false)
     val cookieBlockerEnabled by viewModel.cookieBlockerEnabled.collectAsStateWithLifecycle(initialValue = false)
     val popupBlockerEnabled by viewModel.popupBlockerEnabled.collectAsStateWithLifecycle(initialValue = true)
     val showTabIcons by viewModel.showTabIcons.collectAsStateWithLifecycle(initialValue = false)
     val vtApiKey by viewModel.virusTotalApiKey.collectAsStateWithLifecycle(initialValue = "")
     val koodousApiKey by viewModel.koodousApiKey.collectAsStateWithLifecycle(initialValue = "")
     val customDohUrl by viewModel.customDohUrl.collectAsStateWithLifecycle(initialValue = "")
+    val customSearchEngineUrl by viewModel.customSearchEngineUrl.collectAsStateWithLifecycle(initialValue = "")
     val follianMode by viewModel.follianMode.collectAsStateWithLifecycle(initialValue = false)
     val amoledBlackEnabled by viewModel.amoledBlackEnabled.collectAsStateWithLifecycle(initialValue = false)
     val appFont by viewModel.appFont.collectAsStateWithLifecycle(initialValue = "SYSTEM")
@@ -214,7 +219,7 @@ fun SettingsScreen(
             ) {
             // Storage & Cache (New Section)
             Text(
-                text = "Storage & Cache",
+                text = "Storage & Cache (Experimental)",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -339,7 +344,7 @@ fun SettingsScreen(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
                 ) {
-                    listOf("DuckDuckGo", "Google", "Bing", "Brave").forEach { engine ->
+                    listOf("DuckDuckGo", "Google", "Bing", "Brave", "Custom").forEach { engine ->
                         DropdownMenuItem(
                             text = { Text(engine) },
                             onClick = { 
@@ -352,6 +357,30 @@ fun SettingsScreen(
                 }
             }
 
+            AnimatedVisibility(visible = searchEngine.lowercase() == "custom") {
+                var customUrlText by remember(customSearchEngineUrl) { mutableStateOf(customSearchEngineUrl) }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customUrlText,
+                        onValueChange = { customUrlText = it },
+                        label = { Text("Custom Search URL Template") },
+                        placeholder = { Text("https://example.com/search?q=%s") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Use %s where the search query should be placed.") },
+                        trailingIcon = {
+                            if (customUrlText != customSearchEngineUrl) {
+                                IconButton(onClick = { 
+                                    viewModel.setCustomSearchEngineUrl(customUrlText.trim())
+                                }) {
+                                    Icon(Icons.Default.Check, contentDescription = "Save Custom URL")
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
             // Custom Start Page
             val homePage by viewModel.homePage.collectAsStateWithLifecycle(initialValue = "about:blank")
             var homePageText by remember(homePage) { mutableStateOf(homePage) }
@@ -360,7 +389,7 @@ fun SettingsScreen(
                 value = homePageText,
                 onValueChange = { homePageText = it },
                 label = { Text("Custom Start Page") },
-                placeholder = { Text("https://example.com or about:blank") },
+                placeholder = { Text("https://example.com or anything, babe") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 supportingText = { Text("Leave empty or use 'about:blank' for the default new tab page") },
@@ -785,13 +814,6 @@ fun SettingsScreen(
                     )
                 }
             }
-
-            SettingsSwitch(
-                title = "Boring Engine",
-                subtitle = "Boring. Stable. Forgettable. (Session-Locked)",
-                checked = boringEngineEnabled,
-                onCheckedChange = { viewModel.setBoringEngineEnabled(it) }
-            )
             
             val isFollianActive by viewModel.follianModeState.collectAsState()
             
@@ -841,6 +863,13 @@ fun SettingsScreen(
             )
 
             SettingsSwitch(
+                title = "Advanced ADBlock",
+                subtitle = "Inject CSP to block inline scripts and trackers (May break sites)",
+                checked = advancedAdBlockEnabled,
+                onCheckedChange = { viewModel.setAdvancedAdBlockEnabled(it) }
+            )
+
+            SettingsSwitch(
                 title = "HTTPS Only Mode",
                 subtitle = "Upgrade insecure connections to HTTPS",
                 checked = httpsOnly,
@@ -855,10 +884,10 @@ fun SettingsScreen(
             )
 
             SettingsSwitch(
-                title = "Do Not Track",
-                subtitle = "Send DNT header to websites",
-                checked = doNotTrackEnabled,
-                onCheckedChange = { viewModel.setDoNotTrackEnabled(it) }
+                title = "Share Anonymous Analytics",
+                subtitle = "Help improve JusBrowse by sharing basic installation and streak data. No URLs or fingerprinting data is sent.",
+                checked = analyticsEnabled,
+                onCheckedChange = { viewModel.setAnalyticsEnabled(it) }
             )
 
             SettingsSwitch(
@@ -996,8 +1025,8 @@ fun SettingsScreen(
 
             if (darkMode) {
                 SettingsSwitch(
-                    title = "AMOLED Black Mode",
-                    subtitle = "Force pure black backgrounds (OLED only)",
+                    title = "Extra Dark Mode",
+                    subtitle = "(Read the title bruh)",
                     checked = amoledBlackEnabled,
                     onCheckedChange = { viewModel.setAmoledBlackEnabled(it) }
                 )
@@ -1014,7 +1043,7 @@ fun SettingsScreen(
 
             // Security API Keys
             Text(
-                text = "Security API Keys (BYOK)",
+                text = "Security API Keys (experimental)",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -1082,7 +1111,7 @@ fun SettingsScreen(
                     // Logo / Icon
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data("file:///c:/Users/Shubh/AndroidStudioProjects/JusBrowse-main/app/src/main/ic_launcher-playstore.png") 
+                            .data(R.drawable.ic_launcher_playstore) 
                             .crossfade(true)
                             .build(),
                         contentDescription = "JusBrowse Logo",
@@ -1117,7 +1146,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     Text(
-                        text = "Version 0.0.6",
+                        text = "Version 0.0.6-3",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
                     )

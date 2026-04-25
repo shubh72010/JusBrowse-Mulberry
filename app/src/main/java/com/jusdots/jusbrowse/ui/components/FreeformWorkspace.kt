@@ -62,7 +62,7 @@ fun FreeformWorkspace(
                     tab = tab,
                     tabIndex = index,
                     onClose = { viewModel.closeTab(index) },
-                    onFocus = { viewModel.bringToFront(tab.id) }
+                    onFocus = { viewModel.switchTab(index) }
                 )
             }
         }

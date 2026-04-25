@@ -19,6 +19,9 @@ import com.jusdots.jusbrowse.ui.viewmodel.BrowserViewModel
 import com.jusdots.jusbrowse.security.DownloadReceiver
 import com.jusdots.jusbrowse.data.repository.DownloadRepository
 import com.jusdots.jusbrowse.data.repository.PreferencesRepository
+import com.jusdots.jusbrowse.utils.AnalyticsManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import android.content.IntentFilter
 import android.app.DownloadManager
 
@@ -86,6 +89,10 @@ class MainActivity : ComponentActivity() {
                     BrowserScreen(viewModel = viewModel)
                 }
             }
+        }
+
+        lifecycleScope.launch {
+            AnalyticsManager.trackAppOpen(preferencesRepository)
         }
     }
 

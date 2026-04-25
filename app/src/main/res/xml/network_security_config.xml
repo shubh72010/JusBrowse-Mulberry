@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Security: Network Security Configuration for TLS enforcement -->
 <network-security-config>
-    <!-- Base config: Cleartext permitted for user-navigated sites, system CAs only -->
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Base config: Custom apps force TLS on all connections -> HTTPS-Only mode natively applied by engine -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

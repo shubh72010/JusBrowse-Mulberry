@@ -1,4 +1,4 @@
-# JusBrowse Alpha 6 (v0.0.6) - The Gecko Migration
+# JusBrowse Alpha 6 (v0.0.6-3) - The Gecko Migration
 
 Alpha 6 marks the most significant milestone in JusBrowse history: the complete abandonment of the system WebView in favor of a custom-integrated **GeckoView** engine.
 
@@ -8,7 +8,7 @@ Android's default WebView is inherently "leaky." It shares state with the system
 *   **Deep Spoofing**: The ability to override low-level browser characteristics (Canvas, WebGL, Audio) via engine flags and WebExtensions.
 *   **Zero Leakage**: Total control over the network stack and telemetry.
 
-## 🚀 Key Changes in v0.0.6
+## 🚀 Key Changes in v0.0.6-3
 
 ### 1. New Engine Architecture
 *   **GeckoRuntime Integration**: Centralized engine management in `BrowserApplication`.

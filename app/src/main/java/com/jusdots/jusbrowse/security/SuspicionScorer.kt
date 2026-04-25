@@ -22,8 +22,22 @@ object SuspicionScorer {
     private const val THRESHOLD_ADM = 100
     private const val THRESHOLD_VOID = 250
 
+    private var lastReportTime = 0L
+    private var pointsInCurrentWindow = 0
+    private const val MAX_POINTS_PER_SECOND = 10
+
     fun reportSuspiciousActivity(points: Int) {
-        _score.value += points
+        val now = System.currentTimeMillis()
+        if (now - lastReportTime > 1000) {
+            // Reset window
+            lastReportTime = now
+            pointsInCurrentWindow = 0
+        }
+
+        if (pointsInCurrentWindow + points <= MAX_POINTS_PER_SECOND) {
+            pointsInCurrentWindow += points
+            _score.value += points
+        }
     }
 
     fun reset() {

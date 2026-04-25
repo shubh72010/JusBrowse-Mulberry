@@ -52,6 +52,15 @@ class BrowserMessageDelegate(private val context: android.content.Context) : Web
                 port.postMessage(msg)
             }
         }
+
+        // Watch for Advanced Ad Block from preferences
+        scope.launch {
+            prefs.advancedAdBlockEnabled.collect { enabled ->
+                Log.d("BrowserMessageDelegate", "Advanced AdBlock Toggle Sent: $enabled")
+                val msg = JSONObject().put("type", "set_advanced_adblock").put("enabled", enabled)
+                port.postMessage(msg)
+            }
+        }
         
         port.setDelegate(object : WebExtension.PortDelegate {
             override fun onPortMessage(message: Any, port: WebExtension.Port) {

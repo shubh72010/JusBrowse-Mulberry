@@ -15,7 +15,7 @@ android {
         minSdk = 26 // Security: Kills ancient WebView exploits, enables modern APIs
         targetSdk = 34
         versionCode = 1
-        versionName = "0.0.6"
+        versionName = "0.0.6-3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -37,6 +37,16 @@ android {
             isMinifyEnabled = false
         }
     }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

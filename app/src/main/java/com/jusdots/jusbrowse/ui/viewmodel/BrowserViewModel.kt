@@ -159,9 +159,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val javascriptEnabled = preferencesRepository.javascriptEnabled
     val darkMode = preferencesRepository.darkMode
     val adBlockEnabled = preferencesRepository.adBlockEnabled
+    val advancedAdBlockEnabled = preferencesRepository.advancedAdBlockEnabled
     val httpsOnly = preferencesRepository.httpsOnly
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
     val doNotTrackEnabled = preferencesRepository.doNotTrackEnabled
+    val analyticsEnabled = preferencesRepository.analyticsEnabled
     val cookieBlockerEnabled = preferencesRepository.cookieBlockerEnabled
     val popupBlockerEnabled = preferencesRepository.popupBlockerEnabled
     val showTabIcons = preferencesRepository.showTabIcons
@@ -173,6 +175,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val startPageBlurAmount = preferencesRepository.startPageBlurAmount
     val backgroundPreset = preferencesRepository.backgroundPreset
     val customDohUrl: StateFlow<String> = preferencesRepository.customDohUrl.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, "")
+    val customSearchEngineUrl: StateFlow<String> = preferencesRepository.customSearchEngineUrl.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, "")
     val protectionWhitelist = preferencesRepository.protectionWhitelist
     val maxCacheSizeMB = preferencesRepository.maxCacheSizeMB
     val cachePolicyWipeOnFull = preferencesRepository.cachePolicyWipeOnFull
@@ -392,16 +395,17 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun downloadToTempFile(url: String, context: Context): java.io.File? = withContext(Dispatchers.IO) {
         try {
             val file = java.io.File(context.cacheDir, "temp_scan_" + java.util.UUID.randomUUID().toString())
-            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            connection.requestMethod = "GET"
             
+            val okHttpClient = com.jusdots.jusbrowse.security.NetworkSurgeon.getSharedClient()
+            val requestBuilder = okhttp3.Request.Builder().url(url)
             val headers = FakeModeManager.getHeaders()
             for ((key, value) in headers) {
-                connection.setRequestProperty(key, value)
+                requestBuilder.header(key, value)
             }
             
-            if (connection.responseCode == 200) {
-                connection.inputStream.use { input ->
+            val response = okHttpClient.newCall(requestBuilder.build()).execute()
+            if (response.isSuccessful) {
+                response.body?.byteStream()?.use { input ->
                     file.outputStream().use { output ->
                         input.copyTo(output)
                     }
@@ -666,8 +670,10 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         // Preemptively reap BEFORE creating a new one to prevent concurrent process OOM
         reapSessionsIfNeeded(preemptive = 1)
         
-        // Yield to allow lmkd/Zygote to clean up dying processes and reclaim physical RAM
-        kotlinx.coroutines.delay(400)
+        // Minor delay only if we are under memory pressure (existing sessions)
+        if (geckoSessionPool.size > 0) {
+            kotlinx.coroutines.delay(100)
+        }
 
         val newSession = com.jusdots.jusbrowse.security.GeckoSessionFactory.createSession(isPrivate, containerId)
         registerGeckoSession(tabId, newSession)
@@ -1076,12 +1082,25 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         return true
     }
 
-    fun getSearchUrl(query: String, engine: String = "DuckDuckGo"): String {
+    fun getSearchUrl(query: String, engine: String = "DuckDuckGo", customUrl: String = ""): String {
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         return when (engine.lowercase()) {
             "google" -> "https://www.google.com/search?q=$encodedQuery"
             "bing" -> "https://www.bing.com/search?q=$encodedQuery"
             "brave" -> "https://search.brave.com/search?q=$encodedQuery"
+            "custom" -> {
+                if (customUrl.isBlank()) {
+                    "https://duckduckgo.com/?q=$encodedQuery"
+                } else if (customUrl.contains("%s")) {
+                    customUrl.replace("%s", encodedQuery)
+                } else {
+                    // Append query if %s is not present, ensuring proper URL joining
+                    val separator = if (customUrl.contains("?")) {
+                        if (customUrl.endsWith("?") || customUrl.endsWith("&")) "" else "&"
+                    } else "?"
+                    "$customUrl${separator}q=$encodedQuery"
+                }
+            }
             else -> "https://duckduckgo.com/?q=$encodedQuery"
         }
     }
@@ -1120,6 +1139,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun setSearchEngine(engine: String) {
         viewModelScope.launch {
             preferencesRepository.setSearchEngine(engine)
+        }
+    }
+
+    fun setCustomSearchEngineUrl(url: String) {
+        viewModelScope.launch {
+            preferencesRepository.setCustomSearchEngineUrl(url)
         }
     }
 
@@ -1217,6 +1242,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setAdvancedAdBlockEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAdvancedAdBlockEnabled(enabled)
+        }
+    }
+
     fun setHttpsOnly(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setHttpsOnly(enabled)
@@ -1226,6 +1257,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun setFlagSecureEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setFlagSecureEnabled(enabled)
+        }
+    }
+
+    fun setAnalyticsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAnalyticsEnabled(enabled)
         }
     }
 
@@ -1442,7 +1479,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun getVisibleTabs(): List<BrowserTab> {
-        // Return first 4 tabs for grid view
+        if (_isMultiViewMode.value) return tabs.toList()
+        
+        // Return first 4 tabs for grid view (legacy/fallback)
         return tabs.take(4)
     }
 
@@ -1609,66 +1648,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     companion object {
         const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
-        const val ENABLE_BOOMER_MODE_SCRIPT = """
-            (function() {
-                if (window.__boomerModeEnabled) return;
-                window.__boomerModeEnabled = true;
 
-                // Add a dynamic style tag for the hover effect
-                var style = document.createElement('style');
-                style.id = '__boomer_hover_style';
-                style.innerHTML = '.__boomer_hover { outline: 2px dashed red !important; cursor: crosshair !important; background-color: rgba(255,0,0,0.1) !important; }';
-                document.head.appendChild(style);
-
-                var prevElement = null;
-
-                window.__boomerMouseOver = function(e) {
-                    if (!window.__boomerModeEnabled) return;
-                    e.stopPropagation();
-                    if (prevElement && prevElement !== e.target) {
-                        prevElement.classList.remove('__boomer_hover');
-                    }
-                    e.target.classList.add('__boomer_hover');
-                    prevElement = e.target;
-                };
-
-                window.__boomerMouseOut = function(e) {
-                    if (!window.__boomerModeEnabled) return;
-                    e.stopPropagation();
-                    e.target.classList.remove('__boomer_hover');
-                };
-
-                window.__boomerClick = function(e) {
-                    if (!window.__boomerModeEnabled) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.target.classList.remove('__boomer_hover');
-                    e.target.style.display = 'none'; // Boom!
-                };
-
-                document.addEventListener('mouseover', window.__boomerMouseOver, true);
-                document.addEventListener('mouseout', window.__boomerMouseOut, true);
-                document.addEventListener('click', window.__boomerClick, true);
-            })();
-        """
-
-        const val DISABLE_BOOMER_MODE_SCRIPT = """
-            (function() {
-                if (!window.__boomerModeEnabled) return;
-                window.__boomerModeEnabled = false;
-                
-                var style = document.getElementById('__boomer_hover_style');
-                if (style) style.remove();
-                
-                var hoveredEls = document.querySelectorAll('.__boomer_hover');
-                hoveredEls.forEach(function(el) {
-                    el.classList.remove('__boomer_hover');
-                });
-
-                document.removeEventListener('mouseover', window.__boomerMouseOver, true);
-                document.removeEventListener('mouseout', window.__boomerMouseOut, true);
-                document.removeEventListener('click', window.__boomerClick, true);
-            })();
-        """
     }
 }

@@ -126,6 +126,7 @@ fun AddressBarWithWebView(
     val context = LocalContext.current
     val tab = if (tabIndex in viewModel.tabs.indices) viewModel.tabs[tabIndex] else null
     val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle(initialValue = "DuckDuckGo")
+    val customSearchEngineUrl by viewModel.customSearchEngineUrl.collectAsStateWithLifecycle(initialValue = "")
     val adBlockEnabled by viewModel.adBlockEnabled.collectAsStateWithLifecycle(initialValue = true)
     val httpsOnly by viewModel.httpsOnly.collectAsStateWithLifecycle(initialValue = false)
     val follianMode by viewModel.follianMode.collectAsStateWithLifecycle(initialValue = false)
@@ -1212,7 +1213,7 @@ fun AddressBarWithWebView(
                                             onSearch = {
                                                 val query = urlTextFieldValue.text.trim()
                                                 if (query.isNotEmpty() && tab != null) {
-                                                    val targetUrl = if (viewModel.isUrlQuery(query)) viewModel.getSearchUrl(query, searchEngine) else query
+                                                    val targetUrl = if (viewModel.isUrlQuery(query)) viewModel.getSearchUrl(query, searchEngine, customSearchEngineUrl) else query
                                                     viewModel.getWebView(tab.id)?.loadUrl(targetUrl)
                                                     viewModel.navigateToUrlForIndex(tabIndex, targetUrl)
                                                     isPillExpanded = false
@@ -1608,7 +1609,7 @@ private fun StartPageHero() {
             // Pulsing JusBrowse logo
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data("file:///c:/Users/Shubh/AndroidStudioProjects/JusBrowse-main/app/src/main/ic_launcher-playstore.png")
+                    .data(R.drawable.ic_launcher_playstore)
                     .crossfade(true)
                     .build(),
                 contentDescription = null,

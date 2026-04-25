@@ -38,20 +38,9 @@ object GhostCookieJar : CookieJar {
         val containerId = activeContainerId.get() ?: "default"
         val ghostCookies = containerCookies[containerId]?.filter { it.matches(url) } ?: emptyList()
         
-        // Sync Strategy: If ghost is empty, pull session cookies from WebView's CookieManager
+        // Sync Strategy: If ghost is empty, do not fallback to WebView anymore
         if (ghostCookies.isEmpty()) {
-            val urlStr = url.toString()
-            val webViewCookies = CookieManager.getInstance().getCookie(urlStr)
-            if (!webViewCookies.isNullOrBlank()) {
-                val pulled = webViewCookies.split(";").mapNotNull {
-                    try {
-                        Cookie.parse(url, it.trim())
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-                return pulled
-            }
+            return emptyList()
         }
         
         return ghostCookies

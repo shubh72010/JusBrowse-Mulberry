@@ -58,7 +58,6 @@ class BrowserApplication : Application() {
             val deviceMode = com.jusdots.jusbrowse.security.MemorySurgeon.getDeviceMode(this)
             
             val prefs = com.jusdots.jusbrowse.data.repository.PreferencesRepository(this)
-            val isFollianActive = kotlinx.coroutines.runBlocking { prefs.follianMode.first() }
             
             // Base privacy settings
             val baseArgs = mutableListOf(
@@ -67,6 +66,8 @@ class BrowserApplication : Application() {
                 "--pref", "intl.accept_languages=en-US, en",
                 "--pref", "privacy.trackingprotection.enabled=true",
                 "--pref", "privacy.trackingprotection.pbmode.enabled=true",
+                // Safe Browsing is disabled to prevent all visited URLs from being sent to Google.
+                // Trade-off: Users lose protection against known malware/phishing domains.
                 "--pref", "browser.safebrowsing.malware.enabled=false",
                 "--pref", "browser.safebrowsing.phishing.enabled=false",
                 "--pref", "dom.security.https_only_mode=true",
@@ -78,32 +79,44 @@ class BrowserApplication : Application() {
                 "--pref", "device.sensors.enabled=false",
                 "--pref", "dom.enable_performance=false",
                 "--pref", "dom.w3c_pointer_events.enabled=false",
-                "--pref", "webgl.override-unmasked-vendor=Google Inc. (Intel)",
-                "--pref", "webgl.override-unmasked-renderer=ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E92) Direct3D11 vs_5_0 ps_5_0, D3D11)"
-
+                // Tor Browser reports "Mozilla"/"Mozilla" for WebGL — match that to avoid leaking real GPU identity
+                "--pref", "webgl.override-unmasked-vendor=Mozilla",
+                "--pref", "webgl.override-unmasked-renderer=Mozilla",
+                // Force en-US locale for Intl APIs and JS Date formatting.
+                // GeckoView's RFP does NOT normalize locale on Android; system locale (e.g. en-IN)
+                // leaks through toLocaleString, Intl.DateTimeFormat, and navigator.language.
+                // These two prefs are belt-and-suspenders alongside the JS injection in content.js.
+                "--pref", "intl.locale.requested=en-US",
+                // Forces Date.prototype.toLocaleString and Intl APIs to use en-US regardless of system locale
+                "--pref", "javascript.use_us_english_locale=true",
+                // WebRTC IP leak protection (Engine Layer)
+                "--pref", "media.peerconnection.ice.no_host=true",
+                "--pref", "media.peerconnection.ice.default_address_only=true",
+                // Global Privacy Control (GPC) signal
+                "--pref", "privacy.globalprivacycontrol.enabled=true",
+                "--pref", "privacy.globalprivacycontrol.functionality.enabled=true",
+                
+                // ═══════════════════════════════════════════════════════
+                // TRUE PER-SITE ISOLATION BOUNDARIES (State Partitioning)
+                // ═══════════════════════════════════════════════════════
+                // 1. Total Cookie Protection (isolates cookies per top-level site)
+                "--pref", "network.cookie.cookieBehavior=5",
+                // 2. Isolate 3rd-party non-cookie storage (localStorage, IndexedDB, Cache API)
+                "--pref", "privacy.partition.always_partition_third_party_non_cookie_storage=true",
+                // 3. Isolate workers (Service Workers, Shared Workers)
+                "--pref", "privacy.partition.service_workers=true",
+                // 4. Isolate network state (HTTP cache, TLS sessions, connection pooling)
+                "--pref", "privacy.partition.network_state=true"
             )
 
 
 
-            if (isFollianActive) {
-                // Follian Protocol: Maximum Native Stealth (Tor "Safest" Level)
-                baseArgs.addAll(listOf(
-                    "--pref", "privacy.resistFingerprinting=true",
-                    "--pref", "privacy.resistFingerprinting.letterboxing=true",
-                    "--pref", "javascript.enabled=false",
-                    "--pref", "webgl.disabled=true",
-                    "--pref", "media.peerconnection.enabled=false",
-                    "--pref", "dom.webaudio.enabled=false",
-                    "--pref", "dom.gamepad.enabled=false"
-                ))
-            } else {
-                // Standard/Persona Engine settings (JusFake active)
-                baseArgs.addAll(listOf(
-                    "--pref", "privacy.resistFingerprinting=false",
-                    "--pref", "privacy.resistFingerprinting.letterboxing=false"
-                ))
-            }
-
+            // RFP + letterboxing are active in ALL modes so screen, platform, locale, and
+            // navigator properties are bucketed at engine level — the same mechanism Tor Browser uses.
+            baseArgs.addAll(listOf(
+                "--pref", "privacy.resistFingerprinting=true",
+                "--pref", "privacy.resistFingerprinting.letterboxing=true"
+            ))
 
             if (deviceMode == com.jusdots.jusbrowse.security.MemorySurgeon.DeviceMode.LOW_SPEC) {
                 // Strict memory caches for Low Spec
@@ -131,13 +144,19 @@ class BrowserApplication : Application() {
             settings.setBaselineFingerprintingProtection(true)
             settings.setBaselineFingerprintingProtectionOverrides("+JSDateTimeUTC,+CanvasRandomization")
 
-
-
-
             runtime = GeckoRuntime.create(this, settings)
 
             // Register privacy WebExtension
             setupWebExtensions(runtime!!)
+
+            // Asynchronously check if Follian is on and signal GeckoSessionFactory.
+            // This avoids blocking the main thread during Application.onCreate.
+            MainScope().launch {
+                val isFollianActive = prefs.follianMode.first()
+                if (isFollianActive) {
+                    com.jusdots.jusbrowse.security.GeckoSessionFactory.follianModeActive = true
+                }
+            }
         }
     }
 

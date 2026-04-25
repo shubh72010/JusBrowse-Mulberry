@@ -82,6 +82,7 @@ fun AddressBarWithGeckoView(
     val context = LocalContext.current
     val tab = if (tabIndex in viewModel.tabs.indices) viewModel.tabs[tabIndex] else null
     val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle(initialValue = "DuckDuckGo")
+    val customSearchEngineUrl by viewModel.customSearchEngineUrl.collectAsStateWithLifecycle(initialValue = "")
     val protectionWhitelist by viewModel.protectionWhitelist.collectAsStateWithLifecycle(initialValue = "")
 
     // PILL BAR STATES (Preserved from original)
@@ -945,7 +946,7 @@ fun AddressBarWithGeckoView(
                                         keyboardActions = KeyboardActions(onSearch = {
                                             val query = urlTextFieldValue.text.trim()
                                             if (query.isNotEmpty()) {
-                                                val targetUrl = if (viewModel.isUrlQuery(query)) viewModel.getSearchUrl(query, searchEngine) else if (!query.contains("://")) "https://$query" else query
+                                                val targetUrl = if (viewModel.isUrlQuery(query)) viewModel.getSearchUrl(query, searchEngine, customSearchEngineUrl) else if (!query.contains("://")) "https://$query" else query
                                                 viewModel.navigateToUrlForIndex(tabIndex, targetUrl)
                                                 session?.loadUri(targetUrl)
                                                 isPillExpanded = false
@@ -1019,7 +1020,7 @@ fun AddressBarWithGeckoView(
                     val totalHits = viewModel.blockedTrackersCount[tab.id] ?: 0
                     Text(text = "Trackers Blocked", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
                     Text(
-                        text = "JusBrowse has blocked $totalHits trackers on this page",
+                        text = "JusBrowse has blocked $totalHits trackers so far, sed :wilted_rose_emoji:",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
@@ -1118,9 +1119,32 @@ fun AddressBarWithGeckoView(
                                         val clipData = event.clipData
                                         if (clipData != null && clipData.itemCount > 0) {
                                             val url = clipData.getItemAt(0).text.toString()
-                                            val fileName = "download_${System.currentTimeMillis()}.jpg"
-                                            viewModel.addDownload(fileName, url, "Downloads/$fileName", 0L)
-                                            android.widget.Toast.makeText(ctx, "Download started", android.widget.Toast.LENGTH_SHORT).show()
+                                            
+                                            // Validate URL first
+                                            val validation = com.jusdots.jusbrowse.security.DownloadValidator.validateDownload(
+                                                url, null, null, null, 0
+                                            )
+                                            if (validation.isAllowed) {
+                                                // Sanitize filename from URL
+                                                val uri = android.net.Uri.parse(url)
+                                                var baseName = uri.lastPathSegment ?: "download"
+                                                
+                                                // Strip directory traversal characters
+                                                baseName = baseName.replace(Regex("[/\\\\\\\\]"), "")
+                                                baseName = baseName.replace("..", "")
+                                                baseName = baseName.replace("\u0000", "")
+                                                
+                                                // Limit to alphanumeric, hyphens, underscores, and one extension
+                                                baseName = baseName.replace(Regex("[^a-zA-Z0-9.\\-_]"), "_")
+                                                
+                                                val fileName = "${System.currentTimeMillis()}_$baseName"
+                                                viewModel.addDownload(fileName, url, "Downloads/$fileName", 0L)
+                                                
+                                                val msg = if (validation.requiresWarning) validation.warningMessage ?: "Download started" else "Download started"
+                                                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                android.widget.Toast.makeText(ctx, "Download blocked: ${validation.warningMessage}", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                         isDragging = false
                                         true
@@ -1155,7 +1179,7 @@ private fun StartPageHero() {
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
             Box(modifier = Modifier.size(120.dp).drawBehind { drawCircle(brush = Brush.radialGradient(colors = listOf(primary.copy(alpha = glowAlpha), Color.Transparent))) })
-            AsyncImage(model = ImageRequest.Builder(LocalContext.current).data("file:///c:/Users/Shubh/AndroidStudioProjects/JusBrowse-main/app/src/main/ic_launcher-playstore.png").crossfade(true).build(), contentDescription = null, modifier = Modifier.size(68.dp).scale(shieldScale))
+            AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(R.drawable.ic_launcher_playstore).crossfade(true).build(), contentDescription = null, modifier = Modifier.size(68.dp).scale(shieldScale))
         }
         Spacer(modifier = Modifier.height(24.dp))
         Text(text = "JusBrowse", style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
