@@ -2,6 +2,7 @@ package com.jusdots.jusbrowse.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,12 +17,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,25 +31,25 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jusdots.jusbrowse.data.models.BrowserTab
-import com.jusdots.jusbrowse.ui.theme.GlassBorderLight
-import com.jusdots.jusbrowse.ui.theme.GlowPrimary
-import com.jusdots.jusbrowse.ui.theme.PrivatePurple
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import com.jusdots.jusbrowse.ui.theme.ContainerBanking
+import com.jusdots.jusbrowse.ui.theme.ContainerPersonal
+import com.jusdots.jusbrowse.ui.theme.ContainerSandbox
+import com.jusdots.jusbrowse.ui.theme.ContainerShopping
+import com.jusdots.jusbrowse.ui.theme.ContainerWork
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun BottomTabBar(
-    tabs: SnapshotStateList<BrowserTab>,
-    activeTabIndex: Int,
+    tabs: List<BrowserTab>,
+    activeTabId: String,
     onTabSelected: (Int) -> Unit,
     onTabClosed: (Int) -> Unit,
     onNewTab: (String) -> Unit,
@@ -61,6 +60,10 @@ fun BottomTabBar(
     showNewTabButton: Boolean = true,
     groupIdToShow: String? = null,
     activeGroupId: String? = null,
+    compact: Boolean = false,
+    chipHeight: String = "normal",
+    activeStyle: String = "gradient",
+    forceStatic: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showContainerMenu by remember { mutableStateOf(false) }
@@ -107,7 +110,7 @@ fun BottomTabBar(
                     modifier = Modifier
                         .weight(1f)
                         .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)
                 ) {
                     if (activeGroupId != null) {
                         // Back to Root button
@@ -121,7 +124,7 @@ fun BottomTabBar(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
+                                imageVector = JusBrowseIcons.ArrowBack,
                                 contentDescription = "Back",
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.primary
@@ -197,7 +200,7 @@ fun BottomTabBar(
                             
                             TabChip(
                                 tab = tab,
-                                isActive = originalIndex == activeTabIndex,
+                                isActive = tab.id == activeTabId,
                                 onClick = { 
                                     if (tab.isGroupMaster) {
                                         onOpenTabGroup(tab.id)
@@ -209,7 +212,11 @@ fun BottomTabBar(
                                 onClose = { onTabClosed(originalIndex) },
                                 onUngroup = { onUngroupTab(tab.id) },
                                 isInsideGroup = effectiveGroupId != null,
-                                showIcon = showIcons
+                                showIcon = showIcons,
+                                compact = compact,
+                                chipHeight = chipHeight,
+                                activeStyle = activeStyle,
+                                forceStatic = forceStatic
                             )
                         }
                     }
@@ -222,15 +229,15 @@ fun BottomTabBar(
                     FilledTonalIconButton(
                         onClick = { onNewTab("default") },
                         modifier = Modifier
-                            .padding(start = 6.dp)
-                            .size(36.dp),
+                            .padding(start = if (compact) 4.dp else 6.dp)
+                            .size(when (chipHeight) { "compact" -> 24.dp; "large" -> 44.dp; else -> 36.dp }),
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = Color.Black.copy(alpha = 0.6f),
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Add,
+                            imageVector = JusBrowseIcons.Add,
                             contentDescription = "New Tab",
                             modifier = Modifier.size(18.dp)
                         )
@@ -248,7 +255,7 @@ fun BottomTabBar(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.ArrowDropDown,
+                            imageVector = JusBrowseIcons.ArrowDropDown,
                             contentDescription = "Containers",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(12.dp)
@@ -268,7 +275,7 @@ fun BottomTabBar(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = if (container == "default") Icons.Filled.Public else Icons.Filled.Layers,
+                                        imageVector = if (container == "default") JusBrowseIcons.Public else JusBrowseIcons.Layers,
                                         contentDescription = null
                                     )
                                 }
@@ -292,29 +299,31 @@ fun TabChip(
     onUngroup: () -> Unit = {},
     isInsideGroup: Boolean = false,
     showIcon: Boolean = false,
+    compact: Boolean = false,
+    chipHeight: String = "normal",
+    activeStyle: String = "gradient",
+    forceStatic: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val primary = MaterialTheme.colorScheme.primary
 
-    // Animate between active and inactive styles
-    AnimatedContent(
-        targetState = isActive,
-        transitionSpec = {
-            (fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
-                    scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)))
-                .togetherWith(fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium)) +
-                        scaleOut(targetScale = 0.92f))
-        },
-        label = "tabChip"
-    ) { active ->
-        val chipBackground = if (active)
-            Brush.linearGradient(
-                colors = listOf(
-                    primary.copy(alpha = 0.85f),
-                    primary.copy(alpha = 0.75f)
+    val chipContent: @Composable (Boolean) -> Unit = { active ->
+        val chipBackground = if (active) {
+            when (activeStyle) {
+                "solid" -> Brush.linearGradient(
+                    colors = listOf(primary.copy(alpha = 0.85f), primary.copy(alpha = 0.85f))
                 )
-            )
-        else
+                "outline" -> Brush.linearGradient(
+                    colors = listOf(Color.Transparent, Color.Transparent)
+                )
+                else -> Brush.linearGradient(
+                    colors = listOf(
+                        primary.copy(alpha = 0.85f),
+                        primary.copy(alpha = 0.75f)
+                    )
+                )
+            }
+        } else
             Brush.linearGradient(
                 colors = listOf(
                     Color.Black.copy(alpha = 0.65f),
@@ -323,11 +332,18 @@ fun TabChip(
             )
 
         val borderColor = if (active) primary.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.12f)
-        val borderWidth = if (active) 1.5.dp else 1.dp
+        val borderWidth = if (active) (if (activeStyle == "outline") 2.dp else 1.5.dp) else 1.dp
+
+        val chipHeightDp = when (chipHeight) {
+            "compact" -> 24.dp
+            "large" -> 44.dp
+            else -> 36.dp
+        }
+        val chipPadding = if (compact) 8.dp else 12.dp
 
         Row(
             modifier = modifier
-                .height(36.dp)
+                .height(chipHeightDp)
                 .clip(CircleShape)
                 .background(chipBackground)
                 .border(borderWidth, borderColor, CircleShape)
@@ -345,31 +361,28 @@ fun TabChip(
                     } else Modifier
                 )
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = chipPadding),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp)
         ) {
-            // Group Master indicator
             if (tab.isGroupMaster) {
                 Icon(
-                    imageVector = Icons.Default.FolderOpen,
+                    imageVector = JusBrowseIcons.FolderOpen,
                     contentDescription = "Group",
                     modifier = Modifier.size(16.dp),
                     tint = primary.copy(alpha = 1.0f)
                 )
             }
 
-            // Private tab indicator
             if (tab.isPrivate) {
                 Icon(
-                    imageVector = Icons.Default.VpnKey,
+                    imageVector = JusBrowseIcons.VpnKey,
                     contentDescription = "Private",
                     modifier = Modifier.size(14.dp),
-                    tint = PrivatePurple
+                    tint = MaterialTheme.colorScheme.tertiary
                 )
             }
 
-            // Container color dot
             val currentContainerId = tab.containerId ?: "default"
             if (currentContainerId != "default") {
                 Box(
@@ -378,10 +391,10 @@ fun TabChip(
                         .clip(CircleShape)
                         .background(
                             when (currentContainerId) {
-                                "work"     -> Color(0xFF4285F4)
-                                "personal" -> Color(0xFF34A853)
-                                "banking"  -> Color(0xFFFBBC05)
-                                "sandbox"  -> Color(0xFFEA4335)
+                                "work"     -> ContainerWork
+                                "personal" -> ContainerPersonal
+                                "banking"  -> ContainerBanking
+                                "sandbox"  -> ContainerSandbox
                                 else       -> primary
                             }
                         )
@@ -389,11 +402,6 @@ fun TabChip(
             }
 
             if (showIcon) {
-                val initial = try {
-                    val url = if (tab.url == "about:blank") "N" else tab.url
-                    android.net.Uri.parse(url).host?.firstOrNull()?.uppercase() ?: "N"
-                } catch (e: Exception) { "N" }
-
                 Box(
                     modifier = Modifier
                         .size(22.dp)
@@ -401,11 +409,24 @@ fun TabChip(
                         .background(primary.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = initial,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = primary
-                    )
+                    if (tab.favicon != null) {
+                        AsyncImage(
+                            model = tab.favicon,
+                            contentDescription = tab.title,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        val initial = try {
+                            val url = if (tab.url == "about:blank") "N" else tab.url
+                            android.net.Uri.parse(url).host?.firstOrNull()?.uppercase() ?: "N"
+                        } catch (e: Exception) { "N" }
+                        Text(
+                            text = initial,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = primary
+                        )
+                    }
                 }
             } else {
                 Text(
@@ -413,19 +434,14 @@ fun TabChip(
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontWeight = FontWeight.ExtraBold
                     ),
-                    color = Color.White,
-                    modifier = Modifier
-                        .widthIn(max = 110.dp)
-                        .graphicsLayer(
-                            compositingStrategy = CompositingStrategy.Offscreen,
-                            blendMode = BlendMode.Difference
-                        ),
+                    color = if (isActive) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    modifier = Modifier.widthIn(max = 110.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            // Ungroup button (visible if inside a group)
             if (isInsideGroup) {
                 Box(
                     modifier = Modifier
@@ -436,7 +452,7 @@ fun TabChip(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.UnfoldLess,
+                        imageVector = JusBrowseIcons.UnfoldLess,
                         contentDescription = "Ungroup",
                         modifier = Modifier.size(11.dp),
                         tint = MaterialTheme.colorScheme.onSecondaryContainer
@@ -444,22 +460,38 @@ fun TabChip(
                 }
             }
 
-            // Close button
-            Box(
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .clickable { onClose() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close Tab",
-                    modifier = Modifier.size(11.dp),
-                    tint = if (active) primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
+            if (active) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .clickable { onClose() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = JusBrowseIcons.Close,
+                        contentDescription = "Close Tab",
+                        modifier = Modifier.size(11.dp),
+                        tint = primary.copy(alpha = 0.8f)
+                    )
+                }
             }
+        }
+    }
+
+    if (forceStatic) {
+        chipContent(isActive)
+    } else {
+        AnimatedContent(
+            targetState = isActive,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(200)) + scaleIn(initialScale = 0.92f, animationSpec = tween(200)))
+                    .togetherWith(fadeOut(animationSpec = tween(150)) + scaleOut(targetScale = 0.92f, animationSpec = tween(150)))
+            },
+            label = "tabChip"
+        ) { active ->
+            chipContent(active)
         }
     }
 }

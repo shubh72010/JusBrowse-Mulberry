@@ -24,12 +24,12 @@ fun FreeformWorkspace(
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Desktop Wallpaper Gradient
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF2C3E50), // Dark Blue
-                        Color(0xFF4CA1AF)  // Teal
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
                     )
                 )
             )

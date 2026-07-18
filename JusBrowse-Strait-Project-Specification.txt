@@ -1,0 +1,422 @@
+## 📱 Project Overview
+- **Official Name**: JusBrowse Strait
+- **Target Platform**: Android 9.0 (API 28) / 3GB RAM minimum
+- **Implementation Language**: Kotlin (recommended)
+- **Rendering Engine**: Official Mozilla GeckoView (maven)
+- **Architecture Pattern**: Custom storage-first architecture
+
+## 🎯 Primary Goals & Success Criteria
+
+### 1. 🔒 Maximum privacy on low-end dopemevices
+**Goal**: Deliver strong privacy protections without requiring powerful hardware.
+
+**Success looks like**:
+- Tracking blocked by default (no user setup needed)
+- Fingerprinting resistance handled by engine layer (GeckoView)
+- No telemetry or background data collection
+- Smooth performance even on 3–4GB RAM devices
+- No privacy features requiring user tuning to "work properly"
+
+### 2. 🧠 Custom architecture for memory efficiency
+**Goal**: Reduce RAM usage through storage-first design instead of heavy in-memory retention.
+
+**Success looks like**:
+- Tabs and sessions persisted to storage instead of RAM-heavy caching
+- Lazy loading of UI modules and browser subsystems
+- Minimal always-active background processes
+- Low memory footprint under multitasking pressure
+- Stable performance even after long usage sessions
+
+### 3. 🎨 Maximum customization without bloat
+**Goal**: Allow deep personalization while keeping system lightweight.
+
+**Success looks like**:
+- Feature toggles do NOT increase runtime overhead significantly
+- Full UI theming (colors, hex input, optional wallpaper)
+- Toolbar and layout customization
+- Font customization (app + web rendering control)
+- Zoom/default page scaling per user or per site
+- No continuous runtime cost from customization system
+- All customization stored as static config, not live processes
+
+### 4. ⚡ Performance-first browsing experience
+**Goal**: Prioritize smooth, predictable interaction over feature density.
+
+**Success looks like**:
+- Fast startup time on low-end devices
+- No UI lag during navigation or tab switching
+- Stable scrolling without frame drops
+- No heavy background synchronization loops
+- Consistent performance under memory pressure
+
+### 5. 💾 Storage-first state management
+**Goal**: Use storage as the primary persistence layer instead of RAM.
+
+**Success looks like**:
+- Session restore after crash or kill
+- Cached assets reused without duplication
+- Strict deduplication across stored resources
+- No redundant copies of identical data
+- Predictable disk usage growth
+
+### 6. 🧩 Controlled feature growth (anti-bloat rule)
+**Goal**: Prevent feature creep that destroys performance.
+
+**Success looks like**:
+- Every feature must justify memory or storage cost
+- No always-on experimental services in stable builds
+- Clear separation between Alpha / Stable / Experimental builds
+- Feature toggles do NOT increase runtime overhead significantly
+
+## 🏗️ Strait Custom Storage-First Architecture (Detailed)
+
+### 🧠 1. Core idea (Storage is PRIMARY)
+Strait is built on a simple rule:
+> **Storage is the source of truth. RAM is just a working surface.**
+
+So:
+- Nothing “lives permanently” in RAM
+- Everything important is always saved to disk first
+- RAM only holds what is actively being used *right now*
+
+This is especially important for low-end Android devices where RAM is unstable and frequently reclaimed by the system.
+
+### ⚙️ 2. Key principles
+
+#### 🔒 1. Storage-first truth model
+All real state exists in storage:
+- tabs
+- sessions
+* history
+- settings
+- cache metadata
+RAM is always reconstructable.
+
+#### ♻️ 2. Stateless RAM design
+RAM is treated like:
+> a temporary workspace, not a database
+If RAM is cleared:
+- nothing breaks
+- everything can be rebuilt
+
+#### 🧩 3. Lazy hydration (on-demand loading)
+Nothing is loaded until needed:
+- tabs load only when switched to
+- UI modules load only when opened
+- history loads only when viewed
+
+#### 🧠 4. Deduplication-first storage
+Before saving anything:
+- check if identical data already exists
+- reuse references instead of duplicating
+
+#### ⚡ 5. Minimal active footprint
+At any moment:
+- only current tab
+- minimal UI state
+- essential engine bindings
+
+#### 🧊 6. Eviction by default
+Inactive data is:
+- removed from RAM
+- kept in storage only
+
+### 🔄 3. Data flow (how everything moves)
+
+#### 📥 App start (cold boot)
+```text
+Storage → load session snapshot → rebuild ONLY active tab into RAM
+```
+Only the last session is restored, not everything.
+
+#### 🌐 Opening a webpage
+```text
+Check storage cache
+   ↓
+If exists → load from storage → render
+Else → fetch network → store → render → cache metadata
+```
+RAM never becomes the long-term holder.
+
+#### 🔁 Tab switching
+```text
+Save current tab state → storage snapshot
+Unload old tab from RAM
+Load new tab into RAM (from storage if needed)
+```
+Only one “live” tab is fully active.
+
+#### 💾 Background pressure (low-end optimization)
+When system is under memory pressure:
+```text
+Inactive tabs → serialized → moved to storage only
+RAM freed immediately
+```
+Nothing is lost, only paused.
+
+#### 🔄 Resume from killed app
+```text
+Storage session → reconstruct UI state → restore active tab → hydrate only what is needed
+```
+This is key for Android reliability.
+
+### 🧩 4. Components using this architecture
+
+#### 🪟 Tabs system
+- stored as Protobuf snapshots
+- only active tab lives in RAM
+- inactive tabs = storage-only
+
+#### 📦 Sessions
+- full browsing session stored on disk
+- includes tab list, URLs, history pointers
+
+#### 🧭 History & bookmarks
+- Room DB indexed storage
+- never fully loaded into RAM
+- queried on demand
+
+#### ⚙️ Settings & UI config
+- persistent storage
+- only parsed when UI opens
+
+#### 🧹 Cache system
+- deduplicated storage cache
+- shared assets reused across tabs
+- no duplicate memory objects
+
+#### 🌐 Engine layer (GeckoView)
+- handles rendering only
+- no persistent app state responsibility
+- stays isolated (GeckoView)
+
+### ⚡ 5. Why this minimizes RAM usage
+
+#### 📉 1. No persistent memory graph
+Unlike typical browsers:
+- no large live tab objects
+- no global reactive state tree
+
+#### 🧊 2. RAM only holds “what you see”
+If you are not actively using it:
+> it is NOT in memory
+
+#### 🔁 3. Everything is reconstructable
+Instead of keeping:
+- multiple tabs in RAM
+Strait does:
+> store → rebuild → reuse
+
+#### ⚡ 4. Aggressive unloading
+Inactive data is immediately evicted:
+- tabs
+- UI modules
+- cached views
+
+### 🚀 6. Performance vs RAM balance
+
+#### Benefits
+* extremely low RAM footprint
+* stable on 2–3GB devices
+* survives Android app kills
+* predictable memory usage
+
+#### Tradeoff (controlled)
+* slightly more storage I/O
+* needs careful caching logic
+* requires strict dedup rules
+But this is intentional:
+> you trade RAM instability for storage reliability
+
+### ⚙️ 7. Runtime Behavior Rules
+
+#### 🔁 7.1 Tab Lifecycle States
+All tabs follow a strict state machine to manage RAM/storage boundaries:
+```text
+Active → Suspended → Serialized → Evicted
+```
+
+**Active**: Tab currently in foreground, fully loaded in RAM, receiving input/events
+**Suspended**: Tab visible but not foreground (split-screen, PIP), minimal RAM footprint, ready to resume
+**Serialized**: Tab not visible, state saved to storage as Protobuf snapshot, no RAM allocation
+**Evicted**: Tab completely removed from storage (user-closed or cleaned via policy)
+
+Transitions:
+- Active → Suspended: When tab loses foreground focus but remains visible
+- Suspended → Serialized: When tab becomes completely invisible or system needs memory
+- Serialized → Active: When user switches to tab (lazy hydration from storage)
+- Any state → Evicted: When user closes tab or storage cleanup policy triggers
+
+#### 💾 7.2 Storage Write Policy
+Defines when and how data persists to storage to balance performance and safety:
+- **Immediate Write**: Critical user actions (tab close, bookmark add, settings change)
+- **Delayed Write**: Active tab state changes (scroll position, form data) - batched every 5s or on visibility change
+- **Batched Write**: Background operations (history entries, cache metadata) - flushed every 30s or on app pause
+- **Forced Flush**: On app termination, low memory warning, or before GeckoView crash recovery
+- **Crash Safety**: Session snapshot written on every tab switch and every 30s during active use
+
+#### 📊 7.3 Memory Budget Rules
+Hard limits to prevent OOM crashes on low-end devices:
+- **Max Active Tabs in RAM**: 1 (only currently visible tab)
+- **Max Suspended Tabs in RAM**: 2 (visible but not foreground, e.g., split-screen)
+- **UI Memory Ceiling**: 50MB total for all UI components and view models
+- **GeckoView Memory Budget**: 150MB max for rendering engine (configurable per device tier)
+- **Eviction Priority Order** (when under pressure):
+  1. Background service caches
+  2. Suspended tab UI state (keep only serialization data)
+  3. History/thumbnails cache (oldest first)
+  4. Image cache (LRU within size limit)
+  5. Non-essential UI prefetched resources
+
+#### 🔄 7.4 Cache Invalidation Rules
+Ensures storage efficiency and data freshness:
+- **Tab/Session Cache**: Valid until explicit user action or storage cleanup
+- **History/Bookmarks**: Persistent until user deletion; auto-expire only via user-configured limits
+- **Image Cache**: LRU eviction when exceeding 50MB storage limit; shared across tabs via deduplication
+- **Script/CSS Cache**: Tied to HTTP cache isolation; invalidated with site data clear
+- **Storage Deduplication**: Reference-counted; assets removed when reference count reaches zero
+- **Stale Data Detection**: Timestamp-based validation for time-sensitive data (e.g., site certificates)
+
+### 🧭 Final architecture definition
+> Strait uses a storage-first architecture where persistent storage is the authoritative system of record, RAM acts only as a temporary execution layer for active interactions, and all inactive state is evicted and reconstructable on demand through lazy hydration.
+
+## 🔒 Privacy Features
+
+### Privacy enhancements implemented beyond GeckoView defaults:
+- Built-in tracker blocking (like Disconnect lists)
+- Enhanced fingerprinting resistance (canvas, audio, etc.)
+- Strict cookie controls (same-site, partition)
+- Referrer policy enforcement
+- User agent spoofing/reduction
+
+### GeckoView Privacy Configuration Selected
+**Custom combination (balanced + stability-first)**:
+```
+Strict Tracking Protection + Cookie Partitioning + Referrer Trimming + HTTP Cache Isolation
+```
+
+### Why this exact combo for Strait
+Strait is:
+- low-end focused
+- storage-first architecture
+- stability > aggression
+- GeckoView-based (GeckoView)
+
+So the goal is:
+> strong privacy WITHOUT breaking websites or increasing maintenance load
+
+### Enabled GeckoView privacy features
+#### 🛑 1. Strict Tracking Protection (CORE)
+* blocks known tracking scripts
+* blocks 3rd-party trackers
+* reduces background network noise
+* improves performance on weak devices
+✔ High impact
+✔ Low risk
+✔ Must-have default
+
+#### 🍪 2. Cookie Partitioning
+* isolates cookies per site
+* prevents cross-site tracking
+* reduces fingerprint correlation
+✔ Strong privacy gain
+✔ Stable on Android
+✔ No UI complexity cost
+
+#### 🔗 3. Referrer Header Trimming
+* limits referrer leakage
+* enforces stricter origin policies
+* prevents cross-site URL sharing
+✔ Lightweight
+✔ Rarely breaks sites
+✔ Good privacy-per-cost ratio
+
+#### 💾 4. HTTP Cache Isolation
+* isolates cached resources per site
+* prevents cross-site cache tracking
+* aligns with Strait’s storage-first system
+✔ Also supports your dedup architecture
+✔ Improves privacy + consistency
+✔ Slight storage tradeoff (acceptable)
+
+### Explicitly NOT enabled
+#### ❌ Fingerprinting resistance (extra aggressive layer)
+* redundant with engine protections
+* high breakage risk
+* unpredictable on Android OEMs
+
+#### ❌ User-Agent reduction/spoofing
+* breaks compatibility
+* triggers anti-bot systems
+* causes inconsistent site behavior
+
+#### ❌ “Enable all features”
+* too aggressive for stability goal
+* increases debugging complexity
+* not needed for Strait’s philosophy
+
+### Strait privacy philosophy
+> “Quiet protection, stable browsing, minimal interference.”
+
+Instead of:
+* fighting websites aggressively
+
+Strait:
+* blocks tracking silently
+* keeps compatibility intact
+* avoids identity manipulation tricks
+
+### Final architecture summary
+Strait privacy stack:
+* Base: GeckoView built-in protections
+* Layer 1: Strict tracking protection
+* Layer 2: Cookie partitioning
+* Layer 3: Referrer trimming
+* Layer 4: Cache isolation
+
+### Final verdict
+> Strait should use a **selective GeckoView privacy configuration focused on tracking protection, cookie isolation, referrer control, and cache separation, while avoiding aggressive fingerprinting or UA manipulation to maintain stability and compatibility.**
+
+This gives you:
+* strong real-world privacy 🔒
+* stable browsing experience ⚡
+* low maintenance cost 🧠
+* high compatibility 🌐
+
+Basically:
+> **privacy that behaves, not privacy that breaks things** 🔥
+
+## 💾 Storage Strategy
+**Combination approach**: Room DB + Protobuf
+- Room Database for structured data (history, bookmarks, settings)
+- Protobuf files for binary serialization of tab/session states
+- This combines efficient querying with compact serialization
+
+## 📱 Target Specifications
+- **Minimum Android Version**: API 28 (Android 9.0)
+- **Minimum RAM**: 3GB
+- **Language**: Kotlin
+- **GeckoView**: Official Mozilla GeckoView from Maven
+- **Architecture**: Custom storage-first
+
+## 🔧 Development Guidelines
+1. **Performance First**: Every feature must justify its memory/storage cost
+2. **Storage-First**: Treat storage as source of truth, RAM as temporary workspace
+3. **Privacy by Default**: Strong protections enabled without user configuration
+4. **Customization Without Bloat**: Feature toggles should not increase runtime overhead
+5. **Low-End Optimization**: Design for 3GB RAM devices as baseline
+6. **Stability Over Aggression**: Privacy features should not break website compatibility
+7. **Deduplication**: Avoid storing identical data multiple times
+8. **Lazy Loading**: Load components only when needed
+9. **Eviction by Default**: Remove inactive data from RAM promptly
+10. **Reconstructable State**: Ensure all state can be rebuilt from storage
+
+## 🚫 Anti-Bloat Rules
+- No always-on experimental services in stable builds
+- Every feature must justify memory or storage cost
+- Clear separation between Alpha / Stable / Experimental builds
+- Feature toggles do NOT increase runtime overhead significantly
+- Predictable disk usage growth (no unbounded storage consumption)
+
+---
+*This document serves as the single source of truth for future AI agents working on JusBrowse Strait. All technical decisions should reference this specification.*

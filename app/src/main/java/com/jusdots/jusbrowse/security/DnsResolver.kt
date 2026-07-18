@@ -23,8 +23,13 @@ object DnsResolver {
         try {
             val urlStr = if (!customDohUrl.isNullOrBlank()) {
                 val urlObj = try { URL(customDohUrl) } catch (e: Exception) { null }
-                val sep = if (urlObj?.query != null) "&" else "?"
-                "$customDohUrl${sep}name=$host&type=CNAME"
+                if (urlObj == null || urlObj.protocol != "https") {
+                    "https://cloudflare-dns.com/dns-query?name=$host&type=CNAME"
+                } else {
+                    val base = customDohUrl.substringBefore("#")
+                    val sep = if (urlObj.query != null) "&" else "?"
+                    "$base${sep}name=$host&type=CNAME"
+                }
             } else {
                 "https://cloudflare-dns.com/dns-query?name=$host&type=CNAME"
             }

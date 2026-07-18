@@ -1,13 +1,7 @@
 package com.jusdots.jusbrowse.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.filled.VpnKey
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,7 +44,7 @@ fun BrowserToolBar(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            Icons.Default.ArrowBack, "Back",
+                            JusBrowseIcons.ArrowBack, "Back",
                             tint = if (currentTab?.canGoBack == true)
                                 MaterialTheme.colorScheme.onSurface
                             else
@@ -64,7 +58,7 @@ fun BrowserToolBar(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            Icons.Default.ArrowForward, "Forward",
+                            JusBrowseIcons.ArrowForward, "Forward",
                             tint = if (currentTab?.canGoForward == true)
                                 MaterialTheme.colorScheme.onSurface
                             else
@@ -77,14 +71,14 @@ fun BrowserToolBar(
                         onClick = { viewModel.toggleMultiViewMode() },
                         modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(Icons.Default.GridView, "Multi-View")
+                        Icon(JusBrowseIcons.GridView, "Multi-View")
                     }
 
                     IconButton(
                         onClick = { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.BROWSER) },
                         modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(Icons.Default.Home, "Home")
+                        Icon(JusBrowseIcons.Home, "Home")
                     }
 
 
@@ -100,7 +94,7 @@ fun BrowserToolBar(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Icon(Icons.Default.MoreVert, "Menu")
+                        Icon(JusBrowseIcons.MoreVert, "Menu")
                     }
 
                     DropdownMenu(
@@ -113,7 +107,7 @@ fun BrowserToolBar(
                                 viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.HISTORY)
                                 showMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.DateRange, null) }
+                            leadingIcon = { Icon(JusBrowseIcons.DateRange, null) }
                         )
                         DropdownMenuItem(
                             text = { Text("Downloads") },
@@ -121,7 +115,7 @@ fun BrowserToolBar(
                                 viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.DOWNLOADS)
                                 showMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.Download, null) }
+                            leadingIcon = { Icon(JusBrowseIcons.Download, null) }
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
@@ -130,7 +124,7 @@ fun BrowserToolBar(
                                 viewModel.createNewTab(isPrivate = true)
                                 showMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.VpnKey, null) }
+                            leadingIcon = { Icon(JusBrowseIcons.VpnKey, null) }
                         )
                         DropdownMenuItem(
                             text = { Text("Close all tabs") },
@@ -138,17 +132,17 @@ fun BrowserToolBar(
                                 viewModel.closeAllTabs()
                                 showMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.Close, null) }
+                            leadingIcon = { Icon(JusBrowseIcons.Close, null) }
                         )
                         HorizontalDivider()
                         var showContainerSubMenu by remember { mutableStateOf(false) }
                         DropdownMenuItem(
                             text = { Text("New container tab") },
                             onClick = { showContainerSubMenu = !showContainerSubMenu },
-                            leadingIcon = { Icon(Icons.Filled.Layers, null) },
+                            leadingIcon = { Icon(JusBrowseIcons.Layers, null) },
                             trailingIcon = {
                                 Icon(
-                                    if (showContainerSubMenu) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                    if (showContainerSubMenu) JusBrowseIcons.ArrowDropUp else JusBrowseIcons.ArrowDropDown,
                                     null
                                 )
                             }
@@ -175,12 +169,12 @@ fun BrowserToolBar(
                                 viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.SETTINGS)
                                 showMenu = false
                             },
-                            leadingIcon = { Icon(Icons.Default.Settings, null) }
+                            leadingIcon = { Icon(JusBrowseIcons.Settings, null) }
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("Airlock Gallery") },
-                            leadingIcon = { Icon(Icons.Default.Security, contentDescription = null) },
+                            leadingIcon = { Icon(JusBrowseIcons.Security, contentDescription = null) },
                             onClick = {
                                 onOpenAirlockGallery()
                                 showMenu = false

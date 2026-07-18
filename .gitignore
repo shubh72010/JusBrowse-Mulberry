@@ -43,6 +43,15 @@ local.properties
 *.jks
 *.keystore
 
+# Environment files (keep secrets out of git)
+*.env
+.env.*
+secrets*
+credentials*
+
+# Room schema exports
+/schemas/
+
 # ProGuard
 /proguard/
 
@@ -55,3 +64,6 @@ lint/
 # Profiling
 *.hprof
 app/release/
+
+# Embedded git repos
+agent-skills/

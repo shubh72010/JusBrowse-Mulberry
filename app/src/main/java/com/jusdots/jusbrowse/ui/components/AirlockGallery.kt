@@ -19,11 +19,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.SlowMotionVideo
-import androidx.compose.material.icons.filled.Audiotrack
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -107,7 +103,7 @@ fun AirlockGallery(
                 ).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = JusBrowseIcons.Close,
                     contentDescription = "Close Gallery",
                     tint = Color.White
                 )
@@ -279,12 +275,13 @@ private fun ImageGrid(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalItemSpacing = 8.dp
     ) {
-        items(images) { item ->
+        items(images.size) { index ->
+            val item = images[index]
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .clickable { onImageClick(images.indexOf(item)) },
+                    .clickable { onImageClick(index) },
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -322,11 +319,12 @@ private fun VideoList(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(videos) { item ->
+        items(videos.size) { index ->
+            val item = videos[index]
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onVideoClick(videos.indexOf(item)) },
+                    .clickable { onVideoClick(index) },
                 shape = RoundedCornerShape(32.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -346,7 +344,7 @@ private fun VideoList(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.SlowMotionVideo,
+                            imageVector = JusBrowseIcons.SlowMotionVideo,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(32.dp)
@@ -375,7 +373,7 @@ private fun VideoList(
                     }
                     
                     Icon(
-                        imageVector = Icons.Default.PlayCircle,
+                        imageVector = JusBrowseIcons.PlayCircle,
                         contentDescription = "Play",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
@@ -402,11 +400,12 @@ private fun AudioList(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(audio) { item ->
+        items(audio.size) { index ->
+            val item = audio[index]
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onAudioClick(audio.indexOf(item)) },
+                    .clickable { onAudioClick(index) },
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -423,7 +422,7 @@ private fun AudioList(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Audiotrack,
+                        imageVector = JusBrowseIcons.Audiotrack,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier

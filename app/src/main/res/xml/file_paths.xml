@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-path name="downloads" path="Download/" />
-    <files-path name="internal_files" path="." />
+    <files-path name="airlock_vault" path="airlock_vault/" />
 </paths>

@@ -3,9 +3,7 @@ package com.jusdots.jusbrowse.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +27,11 @@ fun BookmarksScreen(
     onBack: () -> Unit
 ) {
     val bookmarks by viewModel.bookmarks.collectAsStateWithLifecycle(initialValue = emptyList())
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(bookmarks) {
+        isLoading = false
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -37,7 +40,7 @@ fun BookmarksScreen(
                 title = { Text("Bookmarks", color = MaterialTheme.colorScheme.primary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
+                        Icon(JusBrowseIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -46,7 +49,16 @@ fun BookmarksScreen(
             )
         }
     ) { paddingValues ->
-        if (bookmarks.isEmpty()) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (bookmarks.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -66,7 +78,6 @@ fun BookmarksScreen(
                     .padding(paddingValues)
                     .padding(16.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .blur(15.dp)
                     .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
             ) {
@@ -91,7 +102,7 @@ fun BookmarksScreen(
                         },
                         trailingContent = {
                             IconButton(onClick = { viewModel.deleteBookmark(bookmark) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                                Icon(JusBrowseIcons.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                             }
                         },
                         modifier = Modifier.padding(horizontal = 4.dp),

@@ -16,8 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -85,10 +84,11 @@ fun AirlockViewer(
                         else -> initialMimeType // Fallback to passed mimetype
                     }
                     
+                    val isCurrentPage = pagerState.currentPage == page
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         when {
                             itemMimeType.startsWith("image/") -> ImageAirlock(item.url)
-                            itemMimeType.startsWith("video/") -> VideoAirlock(item.url)
+                            itemMimeType.startsWith("video/") -> VideoAirlock(url = item.url, isVisible = isCurrentPage)
                             itemMimeType.startsWith("audio/") -> AudioAirlock(item.url)
                             else -> UnsupportedMedia(itemMimeType)
                         }
@@ -151,7 +151,7 @@ fun AirlockViewer(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowBackIosNew,
+                                    imageVector = JusBrowseIcons.ArrowBackIosNew,
                                     contentDescription = "Previous",
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -176,7 +176,7 @@ fun AirlockViewer(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowForwardIos,
+                                    imageVector = JusBrowseIcons.ArrowForwardIos,
                                     contentDescription = "Next",
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -241,7 +241,7 @@ private fun ImageAirlock(url: String) {
 }
 
 @Composable
-private fun VideoAirlock(url: String) {
+private fun VideoAirlock(url: String, isVisible: Boolean = true) {
     val context = LocalContext.current
     var showControls by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
@@ -250,41 +250,46 @@ private fun VideoAirlock(url: String) {
     var isBuffering by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(false) }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            val uri = if (url.startsWith("/")) {
-                Uri.fromFile(java.io.File(url))
-            } else {
-                Uri.parse(url)
-            }
-            setMediaItem(androidx.media3.common.MediaItem.fromUri(uri))
-            prepare()
-            playWhenReady = true
-            
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    isBuffering = playbackState == Player.STATE_BUFFERING
-                    if (playbackState == Player.STATE_READY) {
-                        duration = this@apply.duration
+    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+
+    LaunchedEffect(isVisible, url) {
+        if (isVisible) {
+            val player = ExoPlayer.Builder(context).build().apply {
+                val uri = if (url.startsWith("/")) {
+                    Uri.fromFile(java.io.File(url))
+                } else {
+                    Uri.parse(url)
+                }
+                setMediaItem(androidx.media3.common.MediaItem.fromUri(uri))
+                prepare()
+                playWhenReady = true
+
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        isBuffering = playbackState == Player.STATE_BUFFERING
+                        if (playbackState == Player.STATE_READY) {
+                            duration = this@apply.duration
+                        }
                     }
-                }
-                override fun onIsPlayingChanged(playing: Boolean) {
-                    isPlaying = playing
-                }
-            })
-        }
-    }
-    
-    LaunchedEffect(exoPlayer) {
-        while (isActive) {
-            position = exoPlayer.currentPosition
-            delay(500)
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                    }
+                })
+            }
+            exoPlayer = player
+
+            while (isActive) {
+                position = player.currentPosition
+                delay(500)
+            }
+        } else {
+            exoPlayer?.release()
+            exoPlayer = null
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
-    }
+    if (!isVisible || exoPlayer == null) return
+    val player = exoPlayer!!
 
     Box(
         modifier = Modifier
@@ -297,7 +302,7 @@ private fun VideoAirlock(url: String) {
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = exoPlayer
+                    this.player = player
                     useController = false
                 }
             },
@@ -325,14 +330,14 @@ private fun VideoAirlock(url: String) {
             ) {
                 // Center Play/Pause
                 IconButton(
-                    onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() },
+                    onClick = { if (isPlaying) player.pause() else player.play() },
                     modifier = Modifier
                         .align(Alignment.Center)
                         .size(80.dp)
                         .background(MaterialTheme.colorScheme.surface, CircleShape)
                 ) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        imageVector = if (isPlaying) JusBrowseIcons.Pause else JusBrowseIcons.PlayArrow,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(48.dp)
@@ -354,7 +359,7 @@ private fun VideoAirlock(url: String) {
                 ) {
                     Slider(
                         value = position.toFloat(),
-                        onValueChange = { exoPlayer.seekTo(it.toLong()) },
+                        onValueChange = { player.seekTo(it.toLong()) },
                         valueRange = 0f..(if (duration > 0) duration.toFloat() else 1f),
                         colors = SliderDefaults.colors(
                             thumbColor = MaterialTheme.colorScheme.primary,
@@ -383,12 +388,12 @@ private fun VideoAirlock(url: String) {
                     IconButton(
                         onClick = { 
                             isMuted = !isMuted
-                            exoPlayer.volume = if (isMuted) 0f else 1f
+                            player.volume = if (isMuted) 0f else 1f
                         },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Icon(
-                            imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                            imageVector = if (isMuted) JusBrowseIcons.VolumeOff else JusBrowseIcons.VolumeUp,
                             contentDescription = "Mute",
                             tint = Color.White
                         )
@@ -452,7 +457,7 @@ private fun AudioAirlock(url: String) {
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Default.GraphicEq,
+                    imageVector = JusBrowseIcons.GraphicEq,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(120.dp)
@@ -500,7 +505,7 @@ private fun AudioAirlock(url: String) {
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             IconButton(onClick = { exoPlayer.seekTo(position - 10000) }) {
-                Icon(Icons.Default.Replay10, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                Icon(JusBrowseIcons.Replay10, null, tint = Color.White, modifier = Modifier.size(32.dp))
             }
             
             IconButton(
@@ -510,7 +515,7 @@ private fun AudioAirlock(url: String) {
                     .background(MaterialTheme.colorScheme.primary, CircleShape)
             ) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    imageVector = if (isPlaying) JusBrowseIcons.Pause else JusBrowseIcons.PlayArrow,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(48.dp)
@@ -518,7 +523,7 @@ private fun AudioAirlock(url: String) {
             }
             
             IconButton(onClick = { exoPlayer.seekTo(position + 10000) }) {
-                Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                Icon(JusBrowseIcons.FastForward, null, tint = Color.White, modifier = Modifier.size(32.dp))
             }
         }
 
@@ -532,7 +537,7 @@ private fun AudioAirlock(url: String) {
             modifier = Modifier.size(48.dp)
         ) {
             Icon(
-                imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                imageVector = if (isMuted) JusBrowseIcons.VolumeOff else JusBrowseIcons.VolumeUp,
                 contentDescription = "Mute",
                 tint = Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.size(28.dp)
@@ -545,7 +550,7 @@ private fun AudioAirlock(url: String) {
 private fun UnsupportedMedia(mimeType: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Photo, null, tint = Color.Gray, modifier = Modifier.size(64.dp))
+            Icon(JusBrowseIcons.Photo, null, tint = Color.Gray, modifier = Modifier.size(64.dp))
             Spacer(modifier = Modifier.height(16.dp))
             Text("Preview unavailable", color = Color.White)
             Text(mimeType, color = Color.Gray, style = MaterialTheme.typography.labelSmall)
@@ -573,7 +578,7 @@ private fun AirlockTopBar(
             onClick = onClose,
             modifier = Modifier.align(Alignment.CenterStart)
         ) {
-            Icon(Icons.Default.Close, "Close", tint = Color.White)
+            Icon(JusBrowseIcons.Close, "Close", tint = Color.White)
         }
         
         IconButton(
@@ -582,7 +587,7 @@ private fun AirlockTopBar(
                 .align(Alignment.CenterEnd)
                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f), CircleShape)
         ) {
-            Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.primary)
+            Icon(JusBrowseIcons.Download, "Download", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

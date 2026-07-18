@@ -93,46 +93,63 @@
             if (document.readyState === 'complete') runExtraction();
             else window.addEventListener('load', runExtraction, { once: true });
             return true;
-        } else if (message.type === 'toggle_boomer') {
-            if (message.enabled) {
-                if (window.__boomerModeEnabled) return;
-                window.__boomerModeEnabled = true;
-                var style = document.getElementById('__boomer_hover_style');
-                if (!style) {
-                    style = document.createElement('style');
-                    style.id = '__boomer_hover_style';
-                    style.innerHTML = '.__boomer_hover { outline: 3px solid red !important; outline-offset: -3px; background-color: rgba(255,0,0,0.1) !important; transition: outline 0.1s ease; }';
-                    document.head.appendChild(style);
-                }
-                if (!window.__boomerTouchStart) {
-                    window.__boomerTouchStart = function (e) {
-                        if (!window.__boomerModeEnabled) return;
-                        var el = e.target;
-                        var prev = document.querySelector('.__boomer_hover');
-                        if (prev) prev.classList.remove('__boomer_hover');
+    } else if (message.type === 'toggle_boomer') {
+        if (message.enabled) {
+            if (window.__boomerModeEnabled) return;
+            window.__boomerModeEnabled = true;
+
+            // Add hover style
+            var style = document.getElementById('__boomer_hover_style');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = '__boomer_hover_style';
+                style.textContent = '.__boomer_hover { outline: 4px solid red !important; outline-offset: -3px; background-color: rgba(255,0,0,0.15) !important; transition: outline 0.1s ease; }';
+                (document.head || document.documentElement).appendChild(style);
+            }
+
+            if (!window.__boomerTouchStart) {
+                window.__boomerTouchStart = function (e) {
+                    if (!window.__boomerModeEnabled) return;
+                    var prev = document.querySelector('.__boomer_hover');
+                    if (prev) prev.classList.remove('__boomer_hover');
+                    var el = e.target;
+                    // Walk up to a meaningful element (skip text nodes, document, etc.)
+                    while (el && el.nodeType !== 1) el = el.parentNode;
+                    if (el && el !== document.documentElement && el !== document.body) {
                         el.classList.add('__boomer_hover');
-                    };
-                    window.__boomerTouchEnd = function (e) {
-                        if (!window.__boomerModeEnabled) return;
-                        e.preventDefault(); e.stopPropagation();
-                        var el = e.target;
+                        window.__boomerTarget = el;
+                    }
+                };
+                window.__boomerTouchEnd = function (e) {
+                    if (!window.__boomerModeEnabled) return;
+                    e.preventDefault(); e.stopPropagation();
+                    var el = window.__boomerTarget || e.target;
+                    if (el && el.nodeType === 1 && el !== document.documentElement && el !== document.body) {
                         el.classList.remove('__boomer_hover');
-                        el.remove();
-                    };
-                    document.addEventListener('touchstart', window.__boomerTouchStart, { passive: true, capture: true });
-                    document.addEventListener('touchend', window.__boomerTouchEnd, { passive: false, capture: true });
-                }
-            } else {
-                if (!window.__boomerModeEnabled) return;
-                window.__boomerModeEnabled = false;
-                var styleToRemove = document.getElementById('__boomer_hover_style');
-                if (styleToRemove) styleToRemove.remove();
-                var hoveredEls = document.querySelectorAll('.__boomer_hover');
-                hoveredEls.forEach(function (el) { el.classList.remove('__boomer_hover'); });
+                        try { el.remove(); } catch (_) {
+                            // Fallback: remove via parent
+                            try { if (el.parentNode) el.parentNode.removeChild(el); } catch (_) {}
+                        }
+                    }
+                    window.__boomerTarget = null;
+                };
+                document.addEventListener('touchstart', window.__boomerTouchStart, { passive: true, capture: true });
+                document.addEventListener('touchend', window.__boomerTouchEnd, { passive: false, capture: true });
+            }
+        } else {
+            if (!window.__boomerModeEnabled) return;
+            window.__boomerModeEnabled = false;
+            var styleToRemove = document.getElementById('__boomer_hover_style');
+            if (styleToRemove) styleToRemove.remove();
+            var hoveredEls = document.querySelectorAll('.__boomer_hover');
+            hoveredEls.forEach(function (el) { el.classList.remove('__boomer_hover'); });
+            if (window.__boomerTouchStart) {
                 document.removeEventListener('touchstart', window.__boomerTouchStart, true);
                 document.removeEventListener('touchend', window.__boomerTouchEnd, true);
             }
+            window.__boomerTarget = null;
         }
+    }
     });
 
     // ════════════════════════════════════════════════
@@ -161,11 +178,11 @@
         } catch (e) { }
     }
 
-    applyCosmeticFiltering();
-    window.addEventListener('DOMContentLoaded', applyCosmeticFiltering, { once: true });
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') applyCosmeticFiltering();
-    });
+    if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', applyCosmeticFiltering, { once: true });
+    } else {
+        applyCosmeticFiltering();
+    }
 
     // ════════════════════════════════════════════════
     // 14. DYNAMIC AD DETECTION (MutationObserver)
@@ -175,8 +192,20 @@
         'google_ads', 'carbonads', 'ad-unit', 'advertisement'
     ];
 
+    var isRemovingAd = false;
+
+    function isCriticalElement(node) {
+        const tag = node.tagName ? node.tagName.toLowerCase() : '';
+        return tag === 'html' || tag === 'body' || tag === 'head' ||
+               tag === 'frameset' || tag === 'frame' ||
+               (node.parentNode && (node.parentNode.tagName || '').toLowerCase() === 'body' && tag === 'div' && node.children && node.children.length > 20);
+    }
+
     function checkAndRemoveAds(node) {
         if (node.nodeType !== 1) return;
+        if (isCriticalElement(node)) return;
+        if (isRemovingAd) return;
+
         const id = (node.id || '').toLowerCase();
         const className = (node.className || '');
         const tagName = node.tagName.toLowerCase();
@@ -184,29 +213,52 @@
         if (tagName === 'iframe') {
             const src = node.src || '';
             if (AD_SIGNATURES.some(sig => src.includes(sig))) {
-                node.remove();
+                isRemovingAd = true;
+                try { node.remove(); } catch(e) {}
+                setTimeout(function() { isRemovingAd = false; }, 50);
                 return;
             }
         }
 
         const classStr = typeof className === 'string' ? className.toLowerCase() : '';
         if (AD_SIGNATURES.some(sig => id.includes(sig) || classStr.includes(sig))) {
-            node.remove();
+            if (node.parentNode && node.parentNode.children && node.parentNode.children.length <= 2) return;
+            isRemovingAd = true;
+            try { node.remove(); } catch(e) {}
+            setTimeout(function() { isRemovingAd = false; }, 50);
             return;
         }
 
         if (node.children && node.children.length < 5) {
-            for (let child of node.children) {
-                checkAndRemoveAds(child);
+            for (let i = node.children.length - 1; i >= 0; i--) {
+                checkAndRemoveAds(node.children[i]);
             }
         }
     }
 
+    var obTimer = null;
+    var pendingNodes = [];
+
+    function flushAdCheck() {
+        var nodes = pendingNodes;
+        pendingNodes = [];
+        for (var i = 0; i < nodes.length; i++) {
+            checkAndRemoveAds(nodes[i]);
+        }
+    }
+
     const adObserver = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                checkAndRemoveAds(node);
+        for (var m = 0; m < mutations.length; m++) {
+            var mutation = mutations[m];
+            for (var n = 0; n < mutation.addedNodes.length; n++) {
+                pendingNodes.push(mutation.addedNodes[n]);
             }
+        }
+        if (obTimer === null) {
+            obTimer = setTimeout(function() {
+                obTimer = null;
+                flushAdCheck();
+            }, 120);
         }
     });
 

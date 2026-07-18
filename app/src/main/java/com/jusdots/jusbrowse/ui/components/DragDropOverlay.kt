@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -62,7 +61,7 @@ fun DragDropOverlay(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Download,
+                        imageVector = JusBrowseIcons.Download,
                         contentDescription = "Drop to Download",
                         modifier = Modifier.size(32.dp),
                         tint = if (isHovering) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant

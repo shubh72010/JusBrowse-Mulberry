@@ -104,7 +104,7 @@ private fun GridCell(
         // Render the GeckoView for each tab
         AddressBarWithGeckoView(
             viewModel = viewModel,
-            tabIndex = tabIndex,
+            tab = tab,
             onOpenAirlockGallery = {
                 // TODO: Implement media extraction via WebExtension messaging for GeckoView
             },

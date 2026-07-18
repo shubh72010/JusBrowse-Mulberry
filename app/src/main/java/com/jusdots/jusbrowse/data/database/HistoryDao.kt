@@ -28,7 +28,7 @@ interface HistoryDao {
     @Query("DELETE FROM history")
     suspend fun deleteAllHistory()
 
-    @Query("SELECT * FROM history GROUP BY url ORDER BY visitedAt DESC LIMIT :limit")
+    @Query("SELECT *, MAX(visitedAt) AS last_visited FROM history GROUP BY url ORDER BY last_visited DESC LIMIT :limit")
     fun getRecentHistory(limit: Int): Flow<List<HistoryItem>>
 
     @Query("UPDATE history SET title = :title WHERE url = :url")

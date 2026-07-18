@@ -1,0 +1,54 @@
+
+syntax = "proto3";
+
+package jusbrowse;
+
+option java_package = "com.jusdots.jusbrowse.storage.proto";
+option java_multiple_files = true;
+
+message BrowserTabProto {
+  string id = 1;
+  string url = 2;
+  string title = 3;
+  bool is_loading = 4;
+  float progress = 5;
+  bool can_go_back = 6;
+  bool can_go_forward = 7;
+  optional string favicon = 8;
+  bool is_private = 9;
+  string container_id = 10;
+  bool is_desktop_mode = 11;
+  optional string parent_group_id = 12;
+  bool is_group_master = 13;
+}
+
+message TabsSnapshotProto {
+  repeated BrowserTabProto tabs = 1;
+  int32 active_tab_index = 2;
+  int64 timestamp = 3;
+  int32 version = 4;
+}
+
+message ShortcutProto {
+  string id = 1;
+  string title = 2;
+  string url = 3;
+  optional string icon_url = 4;
+}
+
+message StickerProto {
+  string id = 1;
+  string image_uri = 2;
+  float x = 3;
+  float y = 4;
+  float width_dp = 5;
+  float height_dp = 6;
+  float rotation = 7;
+  optional string link = 8;
+}
+
+message WorkspaceSnapshotProto {
+  repeated ShortcutProto shortcuts = 1;
+  repeated StickerProto stickers = 2;
+  int64 timestamp = 3;
+}

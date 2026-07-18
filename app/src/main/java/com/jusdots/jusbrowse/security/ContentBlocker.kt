@@ -2,6 +2,7 @@ package com.jusdots.jusbrowse.security
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -44,7 +45,9 @@ class ContentBlocker(private val context: Context) {
                 line = reader.readLine()
             }
             reader.close()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e("ContentBlocker", "Failed to load block rules", e)
+        }
     }
 
     private fun parseRule(rule: String) {

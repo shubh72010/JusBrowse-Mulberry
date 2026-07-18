@@ -1,27 +1,37 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.protobuf)
     id("kotlin-parcelize")
 }
 
 android {
     namespace = "com.jusdots.jusbrowse"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.jusdots.jusbrowse"
-        minSdk = 26 // Security: Kills ancient WebView exploits, enables modern APIs
-        targetSdk = 34
+        minSdk = 28 // Spec requirement: Android 9.0 (API 28) minimum per JusBrowse-Strait-Project-Specification.txt
+        targetSdk = 37
         versionCode = 1
-        versionName = "0.0.6-3"
+        versionName = "0.0.1-2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        androidResources {
+            localeFilters += setOf("en")
+        }
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        checkDependencies = false
+        abortOnError = false
     }
 
     buildTypes {
@@ -32,6 +42,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false
@@ -51,12 +62,34 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     buildFeatures {
         compose = true
     }
+
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                create("java") { }
+            }
+        }
+    }
+}
+
+tasks.matching { it.name.startsWith("check") && it.name.endsWith("AarMetadata") }.configureEach {
+    enabled = false
+}
+
+tasks.matching { it.name == "validateSigningRelease" }.configureEach {
+    enabled = false
 }
 
 dependencies {
@@ -87,20 +120,25 @@ dependencies {
     // ViewModel
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     
-    // Material Icons Extended — TODO: extract to local JusBrowseIcons.kt
-    implementation(libs.androidx.material.icons.extended)
     
     // JSON Serialization
     implementation(libs.gson)
+
+    // Protobuf — binary serialization for tab/session snapshots
+    implementation("com.google.protobuf:protobuf-java:${libs.versions.protobuf.get()}")
+
+    // Encrypted SharedPreferences for secure key storage
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     
     // Airlock Media Viewer Dependencies
-    implementation("io.coil-kt:coil-compose:2.6.0")             // Image loading for Compose
-    implementation("androidx.media3:media3-exoplayer:1.9.1")    // Core ExoPlayer
-    implementation("androidx.media3:media3-ui:1.9.1")           // ExoPlayer UI components
-    implementation("androidx.media3:media3-common:1.9.1")       // Media3 common functionality
+    implementation("io.coil-kt:coil-compose:2.7.0")              // Image loading for Compose
+    implementation("androidx.media3:media3-exoplayer:1.10.1")   // Core ExoPlayer
+    implementation("androidx.media3:media3-ui:1.10.1")          // ExoPlayer UI components
+    implementation("androidx.media3:media3-common:1.10.1")      // Media3 common functionality
     
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import android.util.Log
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,9 @@ import com.jusdots.jusbrowse.BrowserApplication
 import com.jusdots.jusbrowse.data.models.Bookmark
 import com.jusdots.jusbrowse.data.models.BrowserTab
 import com.jusdots.jusbrowse.data.models.HistoryItem
+import com.jusdots.jusbrowse.data.models.TabDescriptor
+import com.jusdots.jusbrowse.data.models.toBrowserTab
+import com.jusdots.jusbrowse.data.models.toDescriptor
 import com.jusdots.jusbrowse.data.repository.BookmarkRepository
 import com.jusdots.jusbrowse.data.repository.HistoryRepository
 import com.jusdots.jusbrowse.data.repository.DownloadRepository
@@ -36,20 +40,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.jusdots.jusbrowse.lifecycle.TabLifecycleState
 import com.jusdots.jusbrowse.security.ContentBlocker
 import kotlinx.coroutines.*
 import java.util.UUID
 import android.content.Context
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import com.jusdots.jusbrowse.security.FakeModeManager
-
-sealed class UiEvent {
-    data class RequireRestart(val message: String) : UiEvent()
-}
 
 data class TabWindowState(
     var x: Float = 0f,
@@ -59,6 +59,8 @@ data class TabWindowState(
 )
 
 class BrowserViewModel(application: Application) : AndroidViewModel(application) {
+
+    val strait = com.jusdots.jusbrowse.StraitArchitecture(application)
 
     private val database = BrowserApplication.database
     private val bookmarkRepository = BookmarkRepository(database.bookmarkDao())
@@ -76,7 +78,18 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun triggerMediaExtraction(tabId: String) {
         viewModelScope.launch {
-            com.jusdots.jusbrowse.security.AirlockDiscoveryBus.requestExtraction(tabId)
+            com.jusdots.jusbrowse.security.TrackerShieldBus.blockedTrackers.collect { (url, domain) ->
+                val normalizedUrl = normalizeUrlForMapping(url)
+                val tab = _tabDescriptors.find { normalizeUrlForMapping(it.url) == normalizedUrl }
+                if (tab != null) {
+                    recordBlockedTracker(tab.id, domain)
+                } else if (_tabDescriptors.isNotEmpty()) {
+                    val activeId = _activeTabId.value
+                    if (activeId != null) {
+                        recordBlockedTracker(activeId, domain)
+                    }
+                }
+            }
         }
     }
 
@@ -89,11 +102,40 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     // Total blocked hits per tab (cumulative count)
     val blockedTrackersCount = mutableStateMapOf<String, Int>()
     
-    // Snapshot state lists for Compose
-    private val _tabs = mutableStateListOf<BrowserTab>()
-    val tabs: SnapshotStateList<BrowserTab> = _tabs
-    private val _activeTabIndex = MutableStateFlow(0)
-    val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
+    // Tab descriptors — lightweight, always in Compose slot table
+    // Only the active tab has a full BrowserTab in activeTabState.
+    private val _tabDescriptors = mutableStateListOf<TabDescriptor>()
+    val tabDescriptors: SnapshotStateList<TabDescriptor> = _tabDescriptors
+
+    // Active tab identity — which tab is currently foregrounded
+    private val _activeTabId = MutableStateFlow<String?>(null)
+    val activeTabId: StateFlow<String?> = _activeTabId.asStateFlow()
+
+    // Full active tab state — single BrowserTab, NOT a list. Only this one
+    // participates in Compose snapshot invalidation for the content area.
+    private val _activeTabState = MutableStateFlow<BrowserTab?>(null)
+    val activeTabState: StateFlow<BrowserTab?> = _activeTabState.asStateFlow()
+
+    // Derived: reconstruct full tab list for multi-view mode
+    val allTabs: List<BrowserTab>
+        get() {
+            val active = _activeTabState.value
+            return _tabDescriptors.map { desc ->
+                if (active?.id == desc.id) active
+                else desc.toBrowserTab()
+            }
+        }
+
+    val tabs: List<BrowserTab>
+        get() = allTabs
+
+    val activeTabIndex: StateFlow<Int> = combine(
+        snapshotFlow { _tabDescriptors.toList() },
+        _activeTabId
+    ) { descs, activeId ->
+        if (activeId == null) 0
+        else descs.indexOfFirst { it.id == activeId }.coerceAtLeast(0)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     // Tab Group State
     private val _activeGroupId = MutableStateFlow<String?>(null)
@@ -130,7 +172,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // GeckoView Session Pool
-    val geckoSessionPool = mutableMapOf<String, org.mozilla.geckoview.GeckoSession>()
+    val geckoSessionPool = java.util.concurrent.ConcurrentHashMap<String, org.mozilla.geckoview.GeckoSession>()
 
     // Session save debounce
     private var sessionSaveJob: Job? = null
@@ -140,6 +182,10 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val history = historyRepository.getAllHistory()
     val recentHistory = historyRepository.getRecentHistory(10)
     val downloads = downloadRepository.allDownloads
+
+    // Cached preferences for synchronous access
+    private var _cachedDesktopMode: Boolean = false
+    private var _cachedNewTabPosition: String = "end"
 
     // Desktop Shortcuts
     val pinnedShortcuts: SnapshotStateList<Shortcut> = mutableStateListOf()
@@ -159,15 +205,13 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val javascriptEnabled = preferencesRepository.javascriptEnabled
     val darkMode = preferencesRepository.darkMode
     val adBlockEnabled = preferencesRepository.adBlockEnabled
-    val advancedAdBlockEnabled = preferencesRepository.advancedAdBlockEnabled
     val httpsOnly = preferencesRepository.httpsOnly
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
-    val doNotTrackEnabled = preferencesRepository.doNotTrackEnabled
-    val analyticsEnabled = preferencesRepository.analyticsEnabled
     val cookieBlockerEnabled = preferencesRepository.cookieBlockerEnabled
     val popupBlockerEnabled = preferencesRepository.popupBlockerEnabled
     val showTabIcons = preferencesRepository.showTabIcons
     val themePreset = preferencesRepository.themePreset
+    val customThemeColor = preferencesRepository.customThemeColor
     val virusTotalApiKey = preferencesRepository.virusTotalApiKey
     val koodousApiKey = preferencesRepository.koodousApiKey
     val amoledBlackEnabled = preferencesRepository.amoledBlackEnabled
@@ -178,16 +222,85 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val customSearchEngineUrl: StateFlow<String> = preferencesRepository.customSearchEngineUrl.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, "")
     val protectionWhitelist = preferencesRepository.protectionWhitelist
     val maxCacheSizeMB = preferencesRepository.maxCacheSizeMB
-    val cachePolicyWipeOnFull = preferencesRepository.cachePolicyWipeOnFull
-    val cachePolicyLRU = preferencesRepository.cachePolicyLRU
-    
-    // Engines
-    val defaultEngineEnabled = preferencesRepository.defaultEngineEnabled
-    val jusFakeEngineEnabled = preferencesRepository.jusFakeEngineEnabled
-    val boringEngineEnabled = preferencesRepository.boringEngineEnabled
     val multiMediaPlaybackEnabled = preferencesRepository.multiMediaPlaybackEnabled
-    val sessionSeed = FakeModeManager.sessionSeed
     val appFont = preferencesRepository.appFont
+    val browserMode = preferencesRepository.browserMode
+    val uiVariant = preferencesRepository.uiVariant
+
+    // Combined preference groups to reduce individual collectAsStateWithLifecycle calls.
+    // Each group emits a single data class when any member changes, avoiding cascading
+    // recomposition from individual flow emissions.
+
+    data class BrowserUiPrefs(
+        val showTabIcons: Boolean = false,
+        val compactMode: Boolean = false,
+        val alwaysShowUrl: Boolean = true,
+        val reduceAnim: Boolean = false,
+        val showProgressBar: Boolean = true,
+        val startPageBranding: String = "full",
+        val scrimDarkness: String = "normal",
+        val browserMode: String = "strait"
+    )
+
+    data class BrowserLayoutPrefs(
+        val pillBottomMargin: Int = 90,
+        val pillCollapsedWidth: Int = 260,
+        val tabChipHeight: String = "normal",
+        val activeTabStyle: String = "gradient"
+    )
+
+    data class BrowserSearchPrefs(
+        val searchEngine: String = "DuckDuckGo",
+        val customSearchEngineUrl: String = ""
+    )
+
+    val browserUiPrefs: StateFlow<BrowserUiPrefs> = combine(
+        combine(
+            preferencesRepository.showTabIcons,
+            preferencesRepository.compactMode,
+            preferencesRepository.alwaysShowUrl,
+            preferencesRepository.reducedAnimations,
+            preferencesRepository.showProgressBar
+        ) { a, b, c, d, e ->
+            BrowserUiPrefs(
+                showTabIcons = a, compactMode = b, alwaysShowUrl = c,
+                reduceAnim = d, showProgressBar = e
+            )
+        },
+        preferencesRepository.startPageBranding,
+        preferencesRepository.scrimDarkness,
+        preferencesRepository.browserMode
+    ) { prefs, startPageBranding, scrimDarkness, browserMode ->
+        prefs.copy(
+            startPageBranding = startPageBranding,
+            scrimDarkness = scrimDarkness,
+            browserMode = browserMode
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserUiPrefs())
+
+    val browserLayoutPrefs: StateFlow<BrowserLayoutPrefs> = combine(
+        preferencesRepository.pillBottomMargin,
+        preferencesRepository.pillCollapsedWidth,
+        preferencesRepository.tabChipHeight,
+        preferencesRepository.activeTabStyle
+    ) { v1, v2, v3, v4 ->
+        BrowserLayoutPrefs(
+            pillBottomMargin = v1,
+            pillCollapsedWidth = v2,
+            tabChipHeight = v3,
+            activeTabStyle = v4
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserLayoutPrefs())
+
+    val browserSearchPrefs: StateFlow<BrowserSearchPrefs> = combine(
+        preferencesRepository.searchEngine,
+        preferencesRepository.customSearchEngineUrl
+    ) { v1, v2 ->
+        BrowserSearchPrefs(
+            searchEngine = v1,
+            customSearchEngineUrl = v2
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserSearchPrefs())
 
     // WallTheme Color Extraction
     private val _extractedWallColor = MutableStateFlow<androidx.compose.ui.graphics.Color?>(null)
@@ -200,25 +313,29 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val isBoomerMode: StateFlow<Boolean> = _isBoomerMode.asStateFlow()
 
     init {
+        strait.initialize()
         viewModelScope.launch {
-            contentBlocker.initialize()
+            // contentBlocker.initialize() removed: ContentBlocker is deprecated — the WebExtension
+            // pipeline (background.js) handles all blocking. Parsing filter lists at startup
+            // wasted cold-start time and RAM for rules that never reached the GeckoView pipeline.
             loadSession()
-            // Sync timezone with network for airtight spoofing
-            com.jusdots.jusbrowse.security.FakeModeManager.syncTimezoneWithNetwork(this)
         }
-        startCacheMonitor()
-        
+        viewModelScope.launch {
+            val uiRuntime = com.jusdots.jusbrowse.ui.runtime.StraitUIRuntime.getInstance(getApplication())
+            uiRuntime.setUserReducedAnimations(preferencesRepository.reducedAnimations.first())
+        }
         // Listen for Native Tracker Blocks from WebExtension
         viewModelScope.launch {
             com.jusdots.jusbrowse.security.TrackerShieldBus.blockedTrackers.collect { (url, domain) ->
-                // Map the document URL reported by the extension back to our Tab UUID
                 val normalizedUrl = normalizeUrlForMapping(url)
-                val tab = tabs.find { normalizeUrlForMapping(it.url) == normalizedUrl }
+                val tab = _tabDescriptors.find { normalizeUrlForMapping(it.url) == normalizedUrl }
                 if (tab != null) {
                     recordBlockedTracker(tab.id, domain)
-                } else if (tabs.isNotEmpty()) {
-                    // Fallback to active tab if mapping fails but we are on a page
-                    recordBlockedTracker(tabs[activeTabIndex.value].id, domain)
+                } else if (_tabDescriptors.isNotEmpty()) {
+                    val activeId = _activeTabId.value
+                    if (activeId != null) {
+                        recordBlockedTracker(activeId, domain)
+                    }
                 }
             }
         }
@@ -244,11 +361,28 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             customDohUrl.collect { url ->
                 contentBlocker.customDohUrl = url
+                if (url.isNotBlank()) {
+                    com.jusdots.jusbrowse.BrowserApplication.runtime?.settings?.setTrustedRecursiveResolverUri(url)
+                }
             }
         }
-        
+
+        viewModelScope.launch {
+            preferencesRepository.globalDesktopMode.collect { _cachedDesktopMode = it }
+        }
+        viewModelScope.launch {
+            preferencesRepository.newTabPosition.collect { _cachedNewTabPosition = it }
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesRepository.initFollianModeCache()
+        }
+        viewModelScope.launch {
+            preferencesRepository.follianMode.collect { preferencesRepository.updateFollianModeCache(it) }
+        }
+
         // Initial memory check
-        reapSessionsIfNeeded()
+        viewModelScope.launch { reapSessionsIfNeeded() }
     }
 
     private fun normalizeUrlForMapping(url: String): String {
@@ -295,62 +429,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun setCachePolicyWipeOnFull(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setCachePolicyWipeOnFull(enabled)
-        }
-    }
-
-    fun setCachePolicyLRU(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setCachePolicyLRU(enabled)
-        }
-    }
-
-    private fun startCacheMonitor() {
-        viewModelScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                try {
-                    val wipeOnFull = preferencesRepository.cachePolicyWipeOnFull.first()
-                    if (wipeOnFull) {
-                        val currentLimitMB = preferencesRepository.maxCacheSizeMB.first()
-                        val cacheDir = getApplication<Application>().cacheDir
-                        val webCache = java.io.File(cacheDir, "gecko_cache") // Generic name for Gecko storage
-                        
-                        if (webCache.exists()) {
-                            val currentSize = getFolderSize(webCache)
-                            val limitBytes = currentLimitMB.toLong() * 1024 * 1024
-                            
-                            if (currentSize >= limitBytes) {
-                            if (currentSize >= limitBytes) {
-                                clearAllCache()
-                            }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                delay(60_000) // Check every minute
-            }
-        }
-    }
-
-    private fun getFolderSize(file: java.io.File): Long {
-        var size: Long = 0
-        if (file.isDirectory) {
-            val files = file.listFiles()
-            if (files != null) {
-                for (child in files) {
-                    size += getFolderSize(child)
-                }
-            }
-        } else {
-            size = file.length()
-        }
-        return size
-    }
-
     fun clearAllCache() {
         viewModelScope.launch(Dispatchers.IO) {
             val cacheDir = getApplication<Application>().cacheDir
@@ -358,7 +436,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 // Delete common webview cache locations
                 // Cleanup gecko cache if initialized
                 java.io.File(cacheDir, "gecko_cache").deleteRecursively()
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("BrowserViewModel", "Failed to clear gecko cache", e)
+            }
         }
     }
 
@@ -398,11 +478,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             
             val okHttpClient = com.jusdots.jusbrowse.security.NetworkSurgeon.getSharedClient()
             val requestBuilder = okhttp3.Request.Builder().url(url)
-            val headers = FakeModeManager.getHeaders()
-            for ((key, value) in headers) {
-                requestBuilder.header(key, value)
-            }
-            
             val response = okHttpClient.newCall(requestBuilder.build()).execute()
             if (response.isSuccessful) {
                 response.body?.byteStream()?.use { input ->
@@ -413,7 +488,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 return@withContext file
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("BrowserViewModel", "Failed to download temp file from $url", e)
         }
         null
     }
@@ -534,127 +609,87 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
 
 
-    private val gson = Gson()
-
     private fun saveSession() {
-        sessionSaveJob?.cancel() // Cancel any pending debounced save
-        viewModelScope.launch(Dispatchers.Default) {
-            val tabsJson = gson.toJson(tabs.toList())
-            val windowStatesJson = gson.toJson(tabWindowStates.toMap())
-            withContext(Dispatchers.IO) {
-                preferencesRepository.saveSession(tabsJson, windowStatesJson, _activeTabIndex.value)
-            }
-        }
+        debouncedSaveSession()
     }
 
     private fun debouncedSaveSession() {
         sessionSaveJob?.cancel()
-        sessionSaveJob = viewModelScope.launch(Dispatchers.Default) {
-            delay(100) // 100ms debounce
-            val tabsJson = gson.toJson(tabs.toList())
-            val windowStatesJson = gson.toJson(tabWindowStates.toMap())
-            withContext(Dispatchers.IO) {
-                preferencesRepository.saveSession(tabsJson, windowStatesJson, _activeTabIndex.value)
-            }
+        sessionSaveJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(100)
+            val snapshot = allTabs
+            val idx = _tabDescriptors.indexOfFirst { it.id == _activeTabId.value }.coerceAtLeast(0)
+            strait.saveSession(snapshot, idx)
         }
     }
 
     private suspend fun loadSession() {
-        val savedTabsJson = preferencesRepository.savedTabs.first()
-        val savedTabWindowStatesJson = preferencesRepository.savedWindowStates.first()
-        val savedActiveIndex = preferencesRepository.activeTabIndex.first()
+        val savedResult = withContext(Dispatchers.IO) { strait.loadSession() }
 
-        if (!savedTabsJson.isNullOrBlank()) {
+        if (savedResult != null) {
+            val (loadedTabs, savedActiveIndex) = savedResult
             try {
-                val tabsType = object : TypeToken<List<BrowserTab>>() {}.type
-                val loadedTabs: List<BrowserTab> = withContext(Dispatchers.IO) { gson.fromJson(savedTabsJson, tabsType) }
-                
-                val statesType = object : TypeToken<Map<String, TabWindowState>>() {}.type
-                val loadedStates: Map<String, TabWindowState> = if (!savedTabWindowStatesJson.isNullOrBlank()) {
-                    withContext(Dispatchers.IO) { gson.fromJson(savedTabWindowStatesJson!!, statesType) }
-                } else emptyMap()
-
-                tabs.clear()
+                _tabDescriptors.clear()
+                _activeTabState.value = null
+                _activeTabId.value = null
                 tabWindowStates.clear()
-                tabWindowStates.putAll(loadedStates)
 
-                // Sanitize and LOAD STAGGERED to avoid ANR from 10+ webviews at once
                 val sanitizedTabs = loadedTabs.map { tab ->
                     val cid = try { tab.containerId } catch (e: Exception) { null }
                     if (cid == null) tab.copy(containerId = "default") else tab
                 }
-                
-                // Add active tab first if any
-                val activeIdx = if (savedActiveIndex in sanitizedTabs.indices) savedActiveIndex else 0
+
                 if (sanitizedTabs.isNotEmpty()) {
-                    tabs.add(sanitizedTabs[activeIdx])
-                    _activeTabIndex.value = 0
-                    _currentUrl.value = sanitizedTabs[activeIdx].url
-                }
-                
-                // Add others with delay
-                viewModelScope.launch {
+                    val activeIdx = if (savedActiveIndex in sanitizedTabs.indices) savedActiveIndex else 0
+                    val activeTab = sanitizedTabs[activeIdx]
+                    _activeTabState.value = activeTab
+                    _activeTabId.value = activeTab.id
+                    _currentUrl.value = activeTab.url
+
                     sanitizedTabs.forEachIndexed { index, tab ->
                         if (index != activeIdx) {
-                            kotlinx.coroutines.delay(300) // 300ms gap
-                            _passiveTabIds[tab.id] = true // Mark passive before UI sees it
-                            tabs.add(tab)
+                            _passiveTabIds[tab.id] = true
                         }
                     }
+                    _tabDescriptors.addAll(sanitizedTabs.map { it.toDescriptor() })
                 }
-                
+
                 isSessionLoaded = true
                 pendingIntentUrl?.let { url ->
                     createNewTab(url)
                     pendingIntentUrl = null
                 }
             } catch (e: Exception) {
-                // Layer 12: No debug logging in release - silently handle
                 createNewTab()
             }
         }
 
-        if (tabs.isEmpty()) {
+        if (_tabDescriptors.isEmpty()) {
             createNewTab()
         }
 
-        val savedShortcutsJson = preferencesRepository.savedShortcuts.first()
-        if (!savedShortcutsJson.isNullOrBlank()) {
-             try {
-                 val shortcutsType = object : TypeToken<List<Shortcut>>() {}.type
-                 val loadedShortcuts: List<Shortcut> = gson.fromJson(savedShortcutsJson, shortcutsType)
-                 pinnedShortcuts.clear()
-                 pinnedShortcuts.addAll(loadedShortcuts)
-             } catch (e: Exception) {
-                 // Ignore
-             }
-        }
-
-        val savedStickersJson = preferencesRepository.stickers.first()
-        if (!savedStickersJson.isNullOrBlank()) {
-             try {
-                 val stickerType = object : TypeToken<List<Sticker>>() {}.type
-                 val loadedStickers: List<Sticker> = gson.fromJson(savedStickersJson, stickerType)
-                 stickers.clear()
-                 stickers.addAll(loadedStickers)
-             } catch (e: Exception) {
-                 // Ignore
-             }
+        val workspace = withContext(Dispatchers.IO) { strait.loadWorkspace() }
+        if (workspace != null) {
+            pinnedShortcuts.clear()
+            pinnedShortcuts.addAll(workspace.shortcuts)
+            stickers.clear()
+            stickers.addAll(workspace.stickers)
         }
     }
 
     private fun saveShortcuts() {
         viewModelScope.launch {
-            val json = gson.toJson(pinnedShortcuts.toList())
-            preferencesRepository.saveShortcuts(json)
+            strait.saveWorkspace(pinnedShortcuts.toList(), stickers.toList())
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        // Cleanup GeckoSessions
+        sessionSaveJob?.cancel()
+        strait.lifecycleManager.closeAllSessions()
         geckoSessionPool.values.forEach { it.close() }
         geckoSessionPool.clear()
+        viewModelScope.launch { strait.forceFlush() }
     }
 
 
@@ -669,11 +704,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
         // Preemptively reap BEFORE creating a new one to prevent concurrent process OOM
         reapSessionsIfNeeded(preemptive = 1)
-        
-        // Minor delay only if we are under memory pressure (existing sessions)
-        if (geckoSessionPool.size > 0) {
-            kotlinx.coroutines.delay(100)
-        }
 
         val newSession = com.jusdots.jusbrowse.security.GeckoSessionFactory.createSession(isPrivate, containerId)
         registerGeckoSession(tabId, newSession)
@@ -683,53 +713,60 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun registerGeckoSession(tabId: String, session: org.mozilla.geckoview.GeckoSession) {
         geckoSessionPool[tabId] = session
         _passiveTabIds[tabId] = false
-        reapSessionsIfNeeded()
+        val descriptor = _tabDescriptors.find { it.id == tabId }
+        if (descriptor != null) {
+            applyDesktopModeToSession(tabId)
+            val activeState = _activeTabState.value
+            val tab = if (activeState?.id == tabId) activeState else descriptor.toBrowserTab()
+            val entry = strait.lifecycleManager.getEntry(tabId)
+            if (entry?.state == TabLifecycleState.SERIALIZED) {
+                strait.lifecycleManager.hydrateTab(tabId, session)
+            } else {
+                viewModelScope.launch { strait.registerTab(tab, session) }
+            }
+        }
+        viewModelScope.launch { reapSessionsIfNeeded() }
     }
 
-    /**
-     * Layer 12 Adaptive Memory Reaper
-     * Closes non-essential background sessions to stay within RAM budget.
-     */
-    fun reapSessionsIfNeeded(preemptive: Int = 0) {
+    private suspend fun reapSessionsIfNeeded(preemptive: Int = 0) {
         val now = System.currentTimeMillis()
-        if (now - lastMemoryCheckTime < 2000 && preemptive == 0) return // Throttled check unless preemptive
+        if (now - lastMemoryCheckTime < 3000 && preemptive == 0) return
         lastMemoryCheckTime = now
 
-        val context = getApplication<Application>()
-        val budget = com.jusdots.jusbrowse.security.MemorySurgeon.calculateActiveSessionBudget(context)
-        
-        if (geckoSessionPool.size + preemptive > budget) {
-            val activeTabId = tabs.getOrNull(_activeTabIndex.value)?.id
-            val visibleTabIds = if (isMultiViewMode.value) getVisibleTabs().map { it.id }.toSet() else emptySet()
-            
-            // Priority: Focused Tab > Visible Multi-View Tabs > Others (LRU)
-            val candidates = geckoSessionPool.keys.filter { id ->
-                id != activeTabId && !visibleTabIds.contains(id)
-            }
-            
-            // Close oldest sessions first until we hit budget
-            val numToReap = (geckoSessionPool.size + preemptive) - budget
-            candidates.take(numToReap).forEach { id ->
-                Log.d("BrowserViewModel", "Memory Pressure: Suspending tab $id to Passive Mode")
-                geckoSessionPool[id]?.close()
-                geckoSessionPool.remove(id)
-                _passiveTabIds[id] = true
-            }
+        strait.enforceMemoryBudget()
+
+        val activeTabId = _activeTabId.value
+        val activeSessionIds = strait.lifecycleManager.getActiveTabIds()
+
+        val toReap = geckoSessionPool.keys.filter { id ->
+            id != activeTabId && id !in activeSessionIds
+        }
+        if (toReap.isEmpty()) return
+
+        val keepAtLeast = 1
+        val reaperCount = toReap.size - (geckoSessionPool.size - toReap.size).coerceAtMost(keepAtLeast)
+        val reapThese = if (reaperCount <= 0) emptyList() else toReap.take(reaperCount)
+
+        reapThese.forEach { id ->
+            strait.lifecycleManager.serializeTab(id)
+            geckoSessionPool[id]?.close()
+            geckoSessionPool.remove(id)
+            _passiveTabIds[id] = true
         }
     }
 
     fun onTrimMemory(level: Int) {
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-            Log.w("BrowserViewModel", "Severe Memory Pressure (level $level). Flushing caches.")
-            // 1. Force reap everything except active tab
-            val activeTabId = tabs.getOrNull(_activeTabIndex.value)?.id
-            geckoSessionPool.keys.filter { it != activeTabId }.forEach { id ->
-                geckoSessionPool[id]?.close()
-                geckoSessionPool.remove(id)
-                _passiveTabIds[id] = true
+        viewModelScope.launch {
+            strait.onTrimMemory(level)
+            if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                val activeTabId = _activeTabId.value
+                geckoSessionPool.keys.filter { it != activeTabId }.forEach { id ->
+                    strait.lifecycleManager.serializeTab(id)
+                    geckoSessionPool[id]?.close()
+                    geckoSessionPool.remove(id)
+                    _passiveTabIds[id] = true
+                }
             }
-            // 2. Clear content blocker cache
-            // contentBlocker.clearCache() // TODO: implement in ContentBlocker if needed
         }
     }
 
@@ -763,27 +800,42 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun createNewTab(url: String = "about:blank", isPrivate: Boolean = false, containerId: String = "default", select: Boolean = true) {
         val finalUrl = if (url == "about:blank" && homePage.value != "about:blank") homePage.value else url
         val newTabId = UUID.randomUUID().toString()
+        val isDesktop = _cachedDesktopMode
         val newTab = BrowserTab(
             id = newTabId,
             url = finalUrl,
             isPrivate = isPrivate,
-            containerId = containerId
+            containerId = containerId,
+            isDesktopMode = isDesktop
         )
-        tabs.add(newTab)
-        
-        // Initialize window state with a cascade effect
-        val offset = (tabs.size * 20).toFloat()
+        val descriptor = newTab.toDescriptor()
+        val insertIndex = if (_cachedNewTabPosition == "after_current") {
+            val currentIdx = _tabDescriptors.indexOfFirst { it.id == _activeTabId.value }
+            if (currentIdx >= 0) currentIdx + 1 else _tabDescriptors.size
+        } else {
+            _tabDescriptors.size
+        }
+        if (insertIndex in 0.._tabDescriptors.size) {
+            _tabDescriptors.add(insertIndex, descriptor)
+        } else {
+            _tabDescriptors.add(descriptor)
+        }
+
+        val offset = (_tabDescriptors.size * 20).toFloat()
         tabWindowStates[newTabId] = TabWindowState(
             x = offset,
             y = offset,
-            zIndex = (tabs.size).toFloat()
+            zIndex = (_tabDescriptors.size).toFloat()
         )
 
         if (select) {
-            _activeTabIndex.value = tabs.lastIndex
+            _activeTabId.value = newTabId
+            _activeTabState.value = newTab
             _currentUrl.value = url
         }
         saveSession()
+
+        applyDesktopModeToSession(newTabId)
     }
 
     // Tab Group Operations
@@ -792,183 +844,245 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun groupTabs(draggedTabId: String, targetTabId: String) {
-        val draggedIndex = tabs.indexOfFirst { it.id == draggedTabId }
-        val targetIndex = tabs.indexOfFirst { it.id == targetTabId }
+        val currentTabs = allTabs
+        val draggedIndex = currentTabs.indexOfFirst { it.id == draggedTabId }
+        val targetIndex = currentTabs.indexOfFirst { it.id == targetTabId }
         
         if (draggedIndex != -1 && targetIndex != -1 && draggedTabId != targetTabId) {
-            val targetTab = tabs[targetIndex]
-            val draggedTab = tabs[draggedIndex]
+            val targetTab = currentTabs[targetIndex]
+            val draggedTab = currentTabs[draggedIndex]
             
-            // If target is already a Master, just add the dragged tab to it
             val groupIdToUse = if (targetTab.isGroupMaster) {
                 targetTab.id
             } else {
-                // Target becomes a master
                 val updatedTarget = targetTab.copy(isGroupMaster = true)
-                tabs[targetIndex] = updatedTarget
+                val targetDescIdx = _tabDescriptors.indexOfFirst { it.id == targetTabId }
+                if (targetDescIdx >= 0) {
+                    _tabDescriptors[targetDescIdx] = updatedTarget.toDescriptor()
+                }
+                if (_activeTabId.value == targetTabId) {
+                    _activeTabState.value = updatedTarget
+                }
                 targetTab.id
             }
             
-            // Assign dragged tab to new parent
             val updatedDragged = draggedTab.copy(parentGroupId = groupIdToUse)
-            tabs[draggedIndex] = updatedDragged
+            val draggedDescIdx = _tabDescriptors.indexOfFirst { it.id == draggedTabId }
+            if (draggedDescIdx >= 0) {
+                _tabDescriptors[draggedDescIdx] = updatedDragged.toDescriptor()
+            }
+            if (_activeTabId.value == draggedTabId) {
+                _activeTabState.value = updatedDragged
+            }
             
             saveSession()
         }
     }
 
     fun ungroupTab(tabId: String) {
-        val index = tabs.indexOfFirst { it.id == tabId }
+        val index = _tabDescriptors.indexOfFirst { it.id == tabId }
         if (index != -1) {
-            val tab = tabs[index]
-            val parentId = tab.parentGroupId
-            val updatedTab = tab.copy(parentGroupId = null)
-            tabs[index] = updatedTab
-            
-            // If the parent group is now empty, demote the parent master back to a normal tab
+            val descriptor = _tabDescriptors[index]
+            val parentId = descriptor.parentGroupId
+            val updatedDesc = descriptor.copy(parentGroupId = null)
+            _tabDescriptors[index] = updatedDesc
+            if (_activeTabId.value == tabId && _activeTabState.value != null) {
+                _activeTabState.value = _activeTabState.value?.copy(parentGroupId = null)
+            }
+
             if (parentId != null) {
-                val remainingChildren = tabs.count { it.parentGroupId == parentId }
+                val remainingChildren = _tabDescriptors.count { it.parentGroupId == parentId }
                 if (remainingChildren == 0) {
-                    val parentIndex = tabs.indexOfFirst { it.id == parentId }
+                    val parentIndex = _tabDescriptors.indexOfFirst { it.id == parentId }
                     if (parentIndex != -1) {
-                        tabs[parentIndex] = tabs[parentIndex].copy(isGroupMaster = false)
+                        val parentDesc = _tabDescriptors[parentIndex]
+                        _tabDescriptors[parentIndex] = parentDesc.copy(isGroupMaster = false)
+                        if (_activeTabId.value == parentId && _activeTabState.value != null) {
+                            _activeTabState.value = _activeTabState.value?.copy(isGroupMaster = false)
+                        }
                     }
                     if (_activeGroupId.value == parentId) {
                         _activeGroupId.value = null
                     }
                 }
             }
-            
+
             saveSession()
         }
     }
 
     fun switchTab(index: Int) {
-        if (index in tabs.indices) {
-            _activeTabIndex.value = index
-            val tab = tabs[index]
-            _currentUrl.value = tab.url
-            
-            // Re-activate if it was passive
-            if (_passiveTabIds[tab.id] == true) {
-                _passiveTabIds[tab.id] = false
+        if (index in _tabDescriptors.indices) {
+            val descriptor = _tabDescriptors[index]
+            val tabId = descriptor.id
+            _activeTabId.value = tabId
+            _activeTabState.value = descriptor.toBrowserTab()
+            _currentUrl.value = descriptor.url
+
+            if (_passiveTabIds[tabId] == true) {
+                _passiveTabIds[tabId] = false
             }
-            
-            reapSessionsIfNeeded()
-            saveSession()
-            
-            // Bring window to front if in multi-view
-            val tabId = tabs[index].id
+
             bringToFront(tabId)
+
+            viewModelScope.launch {
+                strait.switchTab(tabId)
+                reapSessionsIfNeeded()
+                saveSession()
+            }
         }
     }
 
     fun closeTab(index: Int) {
-        if (tabs.size > 1 && index in tabs.indices) {
-            val tabToRemove = tabs[index]
-            
-            // ── Group Safeguard ──
+        if (_tabDescriptors.size > 1 && index in _tabDescriptors.indices) {
+            val tabToRemove = _tabDescriptors[index]
+            val tabId = tabToRemove.id
+
             if (tabToRemove.isGroupMaster) {
-                // Remove parentGroupId from all children
-                val children = tabs.filter { it.parentGroupId == tabToRemove.id }
+                val children = _tabDescriptors.filter { it.parentGroupId == tabToRemove.id }
                 children.forEach { child ->
-                    val childIndex = tabs.indexOfFirst { it.id == child.id }
+                    val childIndex = _tabDescriptors.indexOfFirst { it.id == child.id }
                     if (childIndex != -1) {
-                        tabs[childIndex] = child.copy(parentGroupId = null)
+                        _tabDescriptors[childIndex] = child.copy(parentGroupId = null)
+                        if (_activeTabId.value == child.id && _activeTabState.value != null) {
+                            _activeTabState.value = _activeTabState.value?.copy(parentGroupId = null)
+                        }
                     }
                 }
-                
-                // Clear active group if it was this one
+
                 if (_activeGroupId.value == tabToRemove.id) {
                     _activeGroupId.value = null
                 }
             }
-            
-            val session = geckoSessionPool[tabToRemove.id]
-            val isFollianActive = kotlinx.coroutines.runBlocking { preferencesRepository.follianMode.first() }
+
+            val session = geckoSessionPool[tabId]
+            val isFollianActive = preferencesRepository.follianModeCached
             if (isFollianActive) {
                 com.jusdots.jusbrowse.BrowserApplication.runtime?.storageController?.clearData(org.mozilla.geckoview.StorageController.ClearFlags.ALL)
             }
             session?.close()
-            geckoSessionPool.remove(tabToRemove.id)
+            geckoSessionPool.remove(tabId)
 
-            tabWindowStates.remove(tabToRemove.id)
-            tabs.removeAt(index)
-            
-            // Adjust active tab index
-            when {
-                index < _activeTabIndex.value -> _activeTabIndex.value--
-                index == _activeTabIndex.value && index == tabs.size -> {
-                    _activeTabIndex.value = tabs.lastIndex
+            tabWindowStates.remove(tabId)
+            blockedTrackers.remove(tabId)
+            blockedTrackersCount.remove(tabId)
+            anomalies.remove(tabId)
+            _passiveTabIds.remove(tabId)
+            _tabDescriptors.removeAt(index)
+
+            val activeRemoved = _activeTabId.value == tabId
+            if (activeRemoved) {
+                val newActiveIndex = index.coerceAtMost(_tabDescriptors.lastIndex)
+                val newActiveDesc = _tabDescriptors.getOrNull(newActiveIndex)
+                if (newActiveDesc != null) {
+                    _activeTabId.value = newActiveDesc.id
+                    _activeTabState.value = newActiveDesc.toBrowserTab()
+                    _currentUrl.value = newActiveDesc.url
                 }
             }
-            
-            // Update current URL
-            if (_activeTabIndex.value in tabs.indices) {
-                _currentUrl.value = tabs[_activeTabIndex.value].url
+
+            viewModelScope.launch {
+                strait.closeTab(tabId)
+                saveSession()
             }
-            saveSession()
-        } else if (tabs.size == 1) {
-            // If closing last tab, create a new one
-            val oldTabId = tabs[0].id
+        } else if (_tabDescriptors.size == 1) {
+            val oldTabId = _tabDescriptors[0].id
             geckoSessionPool[oldTabId]?.close()
             geckoSessionPool.remove(oldTabId)
 
             tabWindowStates.remove(oldTabId)
+            blockedTrackers.remove(oldTabId)
+            blockedTrackersCount.remove(oldTabId)
+            anomalies.remove(oldTabId)
+            _passiveTabIds.remove(oldTabId)
 
             val newId = UUID.randomUUID().toString()
-            tabs[0] = BrowserTab(
+            val newDesc = TabDescriptor(
                 id = newId,
-                url = "about:blank"
+                url = "about:blank",
+                title = "",
+                favicon = null,
+                isPrivate = false,
+                containerId = "default",
+                isDesktopMode = false,
+                parentGroupId = null,
+                isGroupMaster = false
             )
+            _tabDescriptors[0] = newDesc
+            _activeTabId.value = newId
+            _activeTabState.value = newDesc.toBrowserTab()
             tabWindowStates[newId] = TabWindowState()
             _currentUrl.value = "about:blank"
-            saveSession()
+
+            viewModelScope.launch {
+                strait.closeTab(oldTabId)
+                saveSession()
+            }
         }
     }
 
     fun closeAllTabs() {
+        strait.closeAllTabs()
         geckoSessionPool.values.forEach { it.close() }
         geckoSessionPool.clear()
-        
-        // Clear states
+
         tabWindowStates.clear()
-        tabs.clear()
-        
-        // Re-initialize with one fresh tab
+        blockedTrackers.clear()
+        blockedTrackersCount.clear()
+        anomalies.clear()
+        _passiveTabIds.clear()
+        _tabDescriptors.clear()
+        _activeTabState.value = null
+        _activeTabId.value = null
+
         createNewTab()
         saveSession()
     }
 
     fun updateTab(index: Int, updatedTab: BrowserTab) {
-        if (index in tabs.indices) {
-            tabs[index] = updatedTab
-            if (index == _activeTabIndex.value) {
+        if (index in _tabDescriptors.indices) {
+            val oldDescriptor = _tabDescriptors[index]
+            _tabDescriptors[index] = updatedTab.toDescriptor()
+            if (_activeTabId.value == updatedTab.id) {
+                _activeTabState.value = updatedTab
                 _currentUrl.value = updatedTab.url
             }
-            saveSession()
+            if (oldDescriptor.url != updatedTab.url || oldDescriptor.title != updatedTab.title) {
+                saveSession()
+            }
         }
     }
 
     // Navigation
     // DEPRECATED: Uses active tab. Use navigateToUrl(tabId, url) instead for multi-window correctness.
     fun navigateToUrl(url: String) {
-        navigateToUrlForIndex(_activeTabIndex.value, url)
+        val activeId = _activeTabId.value
+        if (activeId != null) {
+            val index = _tabDescriptors.indexOfFirst { it.id == activeId }
+            if (index >= 0) navigateToUrlForIndex(index, url)
+        }
     }
 
     fun navigateToUrlForIndex(index: Int, url: String) {
         val normalizedUrl = normalizeUrl(url)
-        
-        if (index in tabs.indices) {
-            val tab = tabs[index]
-            // Clear trackers for the new navigation
-            blockedTrackers.remove(tab.id)
-            
-            val updatedTab = tab.copy(url = normalizedUrl)
-            updateTab(index, updatedTab)
-            
-            // Add to history only if NOT private
-            if (!tab.isPrivate) {
+
+        if (index in _tabDescriptors.indices) {
+            val descriptor = _tabDescriptors[index]
+            blockedTrackers.remove(descriptor.id)
+
+            val updatedDesktop = if (descriptor.isDesktopMode) {
+                applyDesktopModeToSession(descriptor.id)
+                descriptor
+            } else descriptor
+
+            val updatedDesc = updatedDesktop.copy(url = normalizedUrl)
+            _tabDescriptors[index] = updatedDesc
+            if (_activeTabId.value == descriptor.id) {
+                _activeTabState.value = _activeTabState.value?.copy(url = normalizedUrl)
+                _currentUrl.value = normalizedUrl
+            }
+
+            if (!descriptor.isPrivate) {
                 viewModelScope.launch {
                     historyRepository.addToHistory(
                         title = normalizedUrl,
@@ -980,65 +1094,85 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
     
     fun navigateToUrlByTabId(tabId: String, url: String) {
-        val index = tabs.indexOfFirst { it.id == tabId }
+        val index = _tabDescriptors.indexOfFirst { it.id == tabId }
         if (index != -1) {
             navigateToUrlForIndex(index, url)
         }
     }
 
     fun updateTabTitle(index: Int, title: String) {
-        if (index in tabs.indices) {
-            val tab = tabs[index]
-            val updatedTab = tab.copy(title = title)
-            updateTab(index, updatedTab)
-            
-            // Sync with history if not private
-            if (!tab.isPrivate) {
+        if (index in _tabDescriptors.indices) {
+            val descriptor = _tabDescriptors[index]
+            val updatedDesc = descriptor.copy(title = title)
+            _tabDescriptors[index] = updatedDesc
+            if (_activeTabId.value == descriptor.id) {
+                _activeTabState.value = _activeTabState.value?.copy(title = title)
+            }
+
+            if (!descriptor.isPrivate) {
                 viewModelScope.launch {
-                    historyRepository.updateHistoryTitle(tab.url, title)
+                    historyRepository.updateHistoryTitle(descriptor.url, title)
                 }
             }
         }
     }
 
+    fun updateTabFavicon(index: Int, faviconUrl: String) {
+        if (index in _tabDescriptors.indices) {
+            val descriptor = _tabDescriptors[index]
+            val updatedDesc = descriptor.copy(favicon = faviconUrl)
+            _tabDescriptors[index] = updatedDesc
+            if (_activeTabId.value == descriptor.id) {
+                _activeTabState.value = _activeTabState.value?.copy(favicon = faviconUrl)
+            }
+        }
+    }
+
     fun updateTabLoadingState(index: Int, isLoading: Boolean, progress: Float = 0f) {
-        if (index in tabs.indices) {
-            val updatedTab = tabs[index].copy(
-                isLoading = isLoading,
-                progress = progress
-            )
-            updateTab(index, updatedTab)
+        if (index in _tabDescriptors.indices) {
+            val descriptor = _tabDescriptors[index]
+            if (_activeTabId.value == descriptor.id) {
+                _activeTabState.value = _activeTabState.value?.copy(
+                    isLoading = isLoading,
+                    progress = progress
+                )
+            }
         }
     }
 
     fun updateTabNavigationState(index: Int, canGoBack: Boolean, canGoForward: Boolean) {
-        if (index in tabs.indices) {
-            val updatedTab = tabs[index].copy(
-                canGoBack = canGoBack,
-                canGoForward = canGoForward
-            )
-            updateTab(index, updatedTab)
+        if (index in _tabDescriptors.indices) {
+            val descriptor = _tabDescriptors[index]
+            if (_activeTabId.value == descriptor.id) {
+                _activeTabState.value = _activeTabState.value?.copy(
+                    canGoBack = canGoBack,
+                    canGoForward = canGoForward
+                )
+            }
+        }
+    }
+
+    private fun applyDesktopModeToSession(tabId: String) {
+        val descriptor = _tabDescriptors.find { it.id == tabId }
+        val session = geckoSessionPool[tabId]
+        if (descriptor != null && session != null) {
+            session.settings.userAgentOverride = if (descriptor.isDesktopMode) DESKTOP_USER_AGENT else null
         }
     }
 
     fun toggleDesktopMode(tabId: String) {
-        val index = tabs.indexOfFirst { it.id == tabId }
+        val index = _tabDescriptors.indexOfFirst { it.id == tabId }
         if (index != -1) {
-            val tab = tabs[index]
-            val newMode = !tab.isDesktopMode
-            tabs[index] = tab.copy(isDesktopMode = newMode)
-            
-            // Apply to session immediately if it exists
+            val descriptor = _tabDescriptors[index]
+            val newMode = !descriptor.isDesktopMode
+            _tabDescriptors[index] = descriptor.copy(isDesktopMode = newMode)
+            if (_activeTabId.value == tabId) {
+                _activeTabState.value = _activeTabState.value?.copy(isDesktopMode = newMode)
+            }
+
+            applyDesktopModeToSession(tabId)
             val session = geckoSessionPool[tabId]
             if (session != null) {
-                // In GeckoView, we change the User Agent override
-                val settings = session.settings
-                if (newMode) {
-                    settings.userAgentOverride = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-                    settings.useTrackingProtection = true
-                } else {
-                    settings.userAgentOverride = "" // Reset to default mobile
-                }
                 session.reload()
             }
             debouncedSaveSession()
@@ -1204,7 +1338,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                     bitmap.recycle()
                 }
             } catch (e: Exception) {
-                // Ignore errors
+                Log.e("BrowserViewModel", "Failed to extract wallpaper color", e)
             }
         }
     }
@@ -1236,45 +1370,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun setAdBlockEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setAdBlockEnabled(enabled)
-        }
-    }
-
-    fun setAdvancedAdBlockEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setAdvancedAdBlockEnabled(enabled)
-        }
-    }
-
-    fun setHttpsOnly(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setHttpsOnly(enabled)
-        }
-    }
-
     fun setFlagSecureEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setFlagSecureEnabled(enabled)
-        }
-    }
-
-    fun setAnalyticsEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setAnalyticsEnabled(enabled)
-        }
-    }
-
-    fun setDoNotTrackEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setDoNotTrackEnabled(enabled)
-        }
-    }
-
-    fun setCookieBlockerEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setCookieBlockerEnabled(enabled)
         }
     }
 
@@ -1290,12 +1388,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun setPopupBlockerEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setPopupBlockerEnabled(enabled)
-        }
-    }
-
     fun setShowTabIcons(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setShowTabIcons(enabled)
@@ -1308,10 +1400,14 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun setVirusTotalApiKey(key: String) {
+    fun setCustomThemeColor(colorHex: String) {
         viewModelScope.launch {
-            preferencesRepository.setVirusTotalApiKey(key)
+            preferencesRepository.setCustomThemeColor(colorHex)
         }
+    }
+
+    fun setVirusTotalApiKey(key: String) {
+        preferencesRepository.setVirusTotalApiKey(key)
     }
 
     fun setCustomDohUrl(url: String) {
@@ -1321,12 +1417,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setKoodousApiKey(key: String) {
-        viewModelScope.launch {
-            preferencesRepository.setKoodousApiKey(key)
-        }
+        preferencesRepository.setKoodousApiKey(key)
     }
 
-    // ============ NEW UI CUSTOMIZATION PREFERENCES ============
     val follianMode = preferencesRepository.follianMode
     val toolbarPosition = preferencesRepository.toolbarPosition
     val compactMode = preferencesRepository.compactMode
@@ -1368,77 +1461,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Engines
-    fun setDefaultEngineEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            if (enabled) {
-                preferencesRepository.setDefaultEngineEnabled(true)
-                preferencesRepository.setBoringEngineEnabled(false)
-                preferencesRepository.setJusFakeEngineEnabled(false)
-            } else {
-                preferencesRepository.setDefaultEngineEnabled(false)
-            }
-        }
-    }
-
-    fun setJusFakeEngineEnabled(context: android.content.Context, enabled: Boolean) {
-        viewModelScope.launch {
-            if (enabled) {
-                // If enabling, we don't do it here anymore, we use activateJusFakeEngine from UI
-                // to handle the restart/context correctly. 
-                // However, for consistency, we update preferences.
-                preferencesRepository.setJusFakeEngineEnabled(true)
-                preferencesRepository.setDefaultEngineEnabled(false)
-            } else {
-                preferencesRepository.setJusFakeEngineEnabled(false)
-                // Trigger the restart to return to default storage
-                com.jusdots.jusbrowse.security.FakeModeManager.disableFakeMode(context)
-            }
-        }
-    }
-
-    fun activateJusFakeEngine(context: android.content.Context, persona: com.jusdots.jusbrowse.security.FakePersona) {
-        viewModelScope.launch {
-            // 1. Save preferences FIRST and Wait
-            preferencesRepository.setJusFakeEngineEnabled(true)
-            preferencesRepository.setDefaultEngineEnabled(false)
-            
-            // 2. Important: Sync other states if needed
-            
-            // 3. Trigger the restart through FakeModeManager
-            com.jusdots.jusbrowse.security.FakeModeManager.enableFakeMode(context, persona)
-        }
-    }
-
-    fun setBoringEngineEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            if (enabled) {
-                preferencesRepository.setBoringEngineEnabled(true)
-                preferencesRepository.setDefaultEngineEnabled(false)
-            } else {
-                preferencesRepository.setBoringEngineEnabled(false)
-            }
-        }
-    }
-
-    // Mutable SharedFlow for UI events like App Restart Prompts
-    private val _uiEvents = kotlinx.coroutines.flow.MutableSharedFlow<UiEvent>()
-    val uiEvents: kotlinx.coroutines.flow.SharedFlow<UiEvent> = _uiEvents.asSharedFlow()
-
-    val follianModeState: kotlinx.coroutines.flow.StateFlow<Boolean> = preferencesRepository.follianMode.stateIn(
-        scope = viewModelScope,
-        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
-        initialValue = false
-    )
-
-    fun setFollianModeEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesRepository.setFollianMode(enabled)
-            // Note: Follian requires an app restart to rebuild GeckoRuntime.
-            _uiEvents.emit(UiEvent.RequireRestart("Follian Protocol requires an app restart to engage native engine locks."))
-        }
-    }
-
     // Site Settings
     fun updateSiteSettings(settings: com.jusdots.jusbrowse.data.models.SiteSettings) {
         viewModelScope.launch {
@@ -1458,9 +1480,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     // Multi-View Mode
     fun toggleMultiViewMode() {
-        // Only allow multi-view if we have 2+ tabs, OR if user just wants to see windows
-        if (tabs.size >= 1) { 
+        if (_tabDescriptors.size >= 1) {
             _isMultiViewMode.value = !_isMultiViewMode.value
+            viewModelScope.launch {
+                preferencesRepository.setMultiViewMode(_isMultiViewMode.value)
+            }
         }
     }
 
@@ -1478,17 +1502,122 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun getVisibleTabs(): List<BrowserTab> {
-        if (_isMultiViewMode.value) return tabs.toList()
-        
-        // Return first 4 tabs for grid view (legacy/fallback)
-        return tabs.take(4)
+    val alwaysShowUrl = preferencesRepository.alwaysShowUrl
+    val reducedAnimations = preferencesRepository.reducedAnimations
+    val pillBottomMargin = preferencesRepository.pillBottomMargin
+    val pillCollapsedWidth = preferencesRepository.pillCollapsedWidth
+    val globalDesktopMode = preferencesRepository.globalDesktopMode
+    val newTabPosition = preferencesRepository.newTabPosition
+    val tabChipHeight = preferencesRepository.tabChipHeight
+    val activeTabStyle = preferencesRepository.activeTabStyle
+    val scrimDarkness = preferencesRepository.scrimDarkness
+    val showProgressBar = preferencesRepository.showProgressBar
+    val startPageBranding = preferencesRepository.startPageBranding
+
+    fun setAlwaysShowUrl(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setAlwaysShowUrl(enabled) }
     }
 
-    // Downloads
-    fun clearDownloads() {
+    fun setReducedAnimations(enabled: Boolean) {
+        com.jusdots.jusbrowse.ui.runtime.StraitUIRuntime.getInstance(getApplication()).setUserReducedAnimations(enabled)
+        viewModelScope.launch { preferencesRepository.setReducedAnimations(enabled) }
+    }
+
+    fun setPillBottomMargin(margin: Int) {
+        viewModelScope.launch { preferencesRepository.setPillBottomMargin(margin) }
+    }
+
+    fun setPillCollapsedWidth(width: Int) {
+        viewModelScope.launch { preferencesRepository.setPillCollapsedWidth(width) }
+    }
+
+    fun setGlobalDesktopMode(enabled: Boolean) {
         viewModelScope.launch {
-            downloadRepository.clearAll()
+            preferencesRepository.setGlobalDesktopMode(enabled)
+            syncDesktopModeToAllTabs(enabled)
+        }
+    }
+
+    fun setNewTabPosition(position: String) {
+        viewModelScope.launch { preferencesRepository.setNewTabPosition(position) }
+    }
+
+    fun setTabChipHeight(height: String) {
+        viewModelScope.launch { preferencesRepository.setTabChipHeight(height) }
+    }
+
+    fun setActiveTabStyle(style: String) {
+        viewModelScope.launch { preferencesRepository.setActiveTabStyle(style) }
+    }
+
+    fun setScrimDarkness(darkness: String) {
+        viewModelScope.launch { preferencesRepository.setScrimDarkness(darkness) }
+    }
+
+    fun setShowProgressBar(show: Boolean) {
+        viewModelScope.launch { preferencesRepository.setShowProgressBar(show) }
+    }
+
+    fun setStartPageBranding(branding: String) {
+        viewModelScope.launch { preferencesRepository.setStartPageBranding(branding) }
+    }
+
+    fun setBrowserMode(mode: String) {
+        viewModelScope.launch { preferencesRepository.setBrowserMode(mode) }
+    }
+
+    fun setUiVariant(variant: String) {
+        viewModelScope.launch { preferencesRepository.setUiVariant(variant) }
+    }
+
+    private fun syncDesktopModeToAllTabs(enabled: Boolean) {
+        for (index in _tabDescriptors.indices) {
+            val desc = _tabDescriptors[index]
+            _tabDescriptors[index] = desc.copy(isDesktopMode = enabled)
+            if (_activeTabId.value == desc.id && _activeTabState.value != null) {
+                _activeTabState.value = _activeTabState.value?.copy(isDesktopMode = enabled)
+            }
+            applyDesktopModeToSession(desc.id)
+        }
+    }
+
+    fun startDownload(context: android.content.Context, url: String, fileName: String) {
+        val downloadManager = context.getSystemService(android.app.DownloadManager::class.java)
+        val uri = android.net.Uri.parse(url)
+        val request = android.app.DownloadManager.Request(uri)
+            .setTitle(fileName)
+            .setDescription("Downloading...")
+            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+        val downloadId = downloadManager?.enqueue(request) ?: return
+        val path = "${android.os.Environment.DIRECTORY_DOWNLOADS}/$fileName"
+        viewModelScope.launch {
+            downloadRepository.addDownload(
+                com.jusdots.jusbrowse.data.models.DownloadItem(
+                    fileName = fileName,
+                    url = url,
+                    filePath = path,
+                    fileSize = 0L,
+                    timestamp = System.currentTimeMillis(),
+                    status = "Downloading",
+                    systemDownloadId = downloadId
+                )
+            )
+        }
+    }
+
+    fun addDownload(fileName: String, url: String, path: String, size: Long) {
+        viewModelScope.launch {
+            downloadRepository.addDownload(
+                com.jusdots.jusbrowse.data.models.DownloadItem(
+                    fileName = fileName,
+                    url = url,
+                    filePath = path,
+                    fileSize = size,
+                    timestamp = System.currentTimeMillis(),
+                    status = "Downloading"
+                )
+            )
         }
     }
 
@@ -1498,151 +1627,53 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addDownload(fileName: String, url: String, filePath: String, fileSize: Long, systemDownloadId: Long = -1) {
+    fun clearDownloads() {
         viewModelScope.launch {
-            downloadRepository.addDownload(
-                DownloadItem(
-                    fileName = fileName,
-                    url = url,
-                    filePath = filePath,
-                    fileSize = fileSize,
-                    securityStatus = "Pending Scan",
-                    systemDownloadId = systemDownloadId
-                )
-            )
+            downloadRepository.clearAll()
         }
     }
 
-    fun startDownload(context: android.content.Context, url: String, fileName: String) {
-        if (url.startsWith("/")) {
-            // Local file (Vaulted)
-            viewModelScope.launch {
-                try {
-                    val source = java.io.File(url)
-                    val destDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                    if (!destDir.exists()) destDir.mkdirs()
-                    val destFile = java.io.File(destDir, fileName)
-                    source.copyTo(destFile, overwrite = true)
-                    
-                    addDownload(fileName, "internal://vaulted", destFile.absolutePath, source.length())
-                    android.widget.Toast.makeText(context, "Saved to Downloads", android.widget.Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-            return
-        }
-        try {
-            val uri = android.net.Uri.parse(url)
-            val request = android.app.DownloadManager.Request(uri)
-                .setTitle(fileName)
-                .setDescription("Downloading via JusBrowse...")
-                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
-                .setAllowedOverMetered(true)
-                .setAllowedOverRoaming(false)
-
-            val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-            val id = downloadManager.enqueue(request)
-
-            // Add to database
-            val fullPath = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).absolutePath + "/" + fileName
-            addDownload(fileName, url, fullPath, 0L, id)
-            
-            android.widget.Toast.makeText(context, "Download started", android.widget.Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(context, "Download failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun updateDownloadSecurity(downloadId: Long, status: String, result: String) {
-        viewModelScope.launch {
-            // Find by system ID (more robust than filename)
-            val allDownloads = downloadRepository.allDownloads.first()
-            val item = allDownloads.find { it.systemDownloadId == downloadId }
-            
-            if (item != null) {
-                val updatedItem = item.copy(
-                    securityStatus = status,
-                    scanResult = result
-                )
-                downloadRepository.addDownload(updatedItem)
-            }
-        }
-    }
-
-    // Shortcuts Management
-    fun pinShortcut(title: String, url: String) {
-        val shortcut = Shortcut(title = title, url = url)
-        pinnedShortcuts.add(shortcut)
-        saveShortcuts()
-    }
-
-    fun unpinShortcut(shortcut: Shortcut) {
-        pinnedShortcuts.remove(shortcut)
-        saveShortcuts()
-    }
-
-    fun pinCurrentTabToDesktop() {
-        val activeTab = tabs.getOrNull(activeTabIndex.value)
-        if (activeTab != null && activeTab.url != "about:blank") {
-            pinShortcut(activeTab.title, activeTab.url)
-        }
-    }
-
-    fun addSticker(imageUri: String, link: String? = null) {
-        val newSticker = Sticker(
-            id = UUID.randomUUID().toString(),
-            imageUri = imageUri,
-            link = link,
-            x = 0.5f,
-            y = 0.5f,
-            widthDp = 512f,
-            heightDp = 512f,
-            rotation = 0f
-        )
-        stickers.add(newSticker)
-        saveStickers()
-    }
-
-    fun updateStickerTransform(id: String, x: Float, y: Float, widthDp: Float, heightDp: Float, rotation: Float) {
+    fun updateStickerTransform(id: String, x: Float, y: Float, w: Float, h: Float, r: Float) {
         val index = stickers.indexOfFirst { it.id == id }
-        if (index != -1) {
+        if (index >= 0) {
             stickers[index] = stickers[index].copy(
-                x = x,
-                y = y,
-                widthDp = widthDp,
-                heightDp = heightDp,
-                rotation = rotation
+                x = x, y = y, widthDp = w, heightDp = h, rotation = r
             )
             saveStickers()
         }
     }
 
-    fun updateStickerLink(stickerId: String, link: String?) {
-        val index = stickers.indexOfFirst { it.id == stickerId }
-        if (index != -1) {
-            stickers[index] = stickers[index].copy(link = link)
-            saveStickers()
-        }
-    }
-
-    fun removeSticker(stickerId: String) {
-        stickers.removeIf { it.id == stickerId }
+    fun removeSticker(id: String) {
+        stickers.removeAll { it.id == id }
         saveStickers()
     }
 
-    private var stickerSaveJob: Job? = null
+    fun addSticker(uri: String) {
+        val sticker = com.jusdots.jusbrowse.data.models.Sticker(
+            id = java.util.UUID.randomUUID().toString(),
+            imageUri = uri,
+            x = 0.5f,
+            y = 0.5f
+        )
+        stickers.add(sticker)
+        viewModelScope.launch {
+            val json = com.google.gson.Gson().toJson(stickers.toList())
+            preferencesRepository.saveStickers(json)
+        }
+    }
 
     fun saveStickers() {
-        stickerSaveJob?.cancel()
-        stickerSaveJob = viewModelScope.launch {
-            delay(500) // Debounce for 500ms
-            val stickersList = stickers.toList()
-            val json = withContext(Dispatchers.Default) {
-                gson.toJson(stickersList)
-            }
+        viewModelScope.launch {
+            val json = com.google.gson.Gson().toJson(stickers.toList())
             preferencesRepository.saveStickers(json)
+        }
+    }
+
+    fun updateStickerLink(id: String, link: String?) {
+        val index = stickers.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            stickers[index] = stickers[index].copy(link = link)
+            saveStickers()
         }
     }
 

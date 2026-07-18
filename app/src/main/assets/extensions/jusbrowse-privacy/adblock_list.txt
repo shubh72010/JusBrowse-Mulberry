@@ -1,7 +1,3 @@
-! Synchronized AdBlock List
-! Total unique domains: 46870
-! Total unique paths: 3006
-
 %2fevent.gif%3f
 %2fo.gif&
 %2fopen.aspx%3f
@@ -40660,7 +40656,7 @@ vipwao.nutrimuscle.com
 vipyou.bulkpowders.es
 viralfoodie.net
 virtualvincent.com
-visible.com##+js(set-local-storage-item, browser-ids, 
+visible.com##+js(set-local-storage-item, browser-ids,
 vision.cbre.com.au
 vision.cbresi.com.au
 visit-prod-us.occa.ocs.oraclecloud.com

@@ -1,0 +1,3 @@
+- Current progress: Replaced hardcoded PC file paths for the JusBrowse logo with proper app resources (`R.drawable.ic_launcher_playstore`) in `SettingsScreen.kt` and `AddressBar` components.
+- Active constraints: Ensure all UI resources are referenced via Android R-classes to prevent build failures on different environments.
+- Immediate next step: Verify UI rendering of the logo in all modified screens and await further feedback on UI refinements.

@@ -420,14 +420,12 @@ body {
     display: block;
 }
 
-/* ========== NEW TAB PAGE ========== */
+/* ========== NEW TAB PAGE (STARIT STARTPAGE) ========== */
 .new-tab-page {
     width: 100%;
     height: 100%;
     display: none;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-primary);
+    background: #000000;
     position: absolute;
     top: 0;
     left: 0;
@@ -437,121 +435,132 @@ body {
     display: flex;
 }
 
-.new-tab-content {
-    text-align: center;
-    max-width: 800px;
-    padding: var(--spacing-xl);
-}
-
-.browser-logo {
-    font-size: 72px;
-    font-weight: 700;
-    background: var(--accent-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: var(--spacing-xl);
-    animation: fadeInUp 0.6s ease-out;
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.search-box-large {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    padding: var(--spacing-md) var(--spacing-lg);
-    background: var(--bg-glass);
-    backdrop-filter: blur(20px);
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-xl);
-    margin-bottom: var(--spacing-xl);
-    transition: all var(--transition-base);
-    animation: fadeInUp 0.6s ease-out 0.2s both;
-}
-
-.search-box-large:focus-within {
-    border-color: var(--accent-primary);
-    box-shadow: var(--shadow-glow);
-}
-
-.search-box-large input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    color: var(--text-primary);
-    font-size: 18px;
-    font-weight: 500;
-    outline: none;
-}
-
-.search-box-large input::placeholder {
-    color: var(--text-tertiary);
-}
-
-.speed-dial {
-    animation: fadeInUp 0.6s ease-out 0.4s both;
-}
-
-.speed-dial h3 {
-    color: var(--text-secondary);
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: var(--spacing-md);
-    text-align: left;
-}
-
-.speed-dial-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: var(--spacing-md);
-}
-
-.speed-dial-item {
+.startpage {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md);
-    background: var(--bg-glass);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    width: 100%;
+    height: 100%;
+    padding: 40px 60px;
+    position: relative;
+}
+
+/* Top Right Action Buttons */
+.startpage-actions {
+    position: absolute;
+    top: 40px;
+    right: 60px;
+    display: flex;
+    gap: 16px;
+}
+
+.startpage-action-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: #1a1a1a;
+    color: #ffffff;
     cursor: pointer;
-    transition: all var(--transition-base);
-}
-
-.speed-dial-item:hover {
-    background: var(--hover-bg);
-    border-color: var(--accent-primary);
-    transform: translateY(-4px);
-}
-
-.speed-dial-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
-    background: var(--accent-gradient);
+    transition: background 0.2s ease;
 }
 
-.speed-dial-title {
-    font-size: 13px;
+.startpage-action-btn:hover {
+    background: #2a2a2a;
+}
+
+.startpage-action-btn svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Brand / Logo Section */
+.startpage-brand {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+}
+
+.brand-logo svg {
+    width: 72px;
+    height: 72px;
+    color: #ffffff;
+}
+
+.brand-text {
+    font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    font-size: 64px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.02em;
+}
+
+/* Bottom Search Section */
+.startpage-search-section {
+    padding-bottom: 80px;
+}
+
+.bookmarks-label {
+    display: block;
+    color: #ffffff;
+    font-size: 14px;
     font-weight: 500;
-    color: var(--text-primary);
-    text-align: center;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    margin-bottom: 12px;
+}
+
+.startpage-search {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: #1a1a1a;
+    border-radius: 100px;
+    padding: 4px;
+}
+
+.startpage-search input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 400;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    outline: none;
+    padding: 16px 20px;
+}
+
+.startpage-search input::placeholder {
+    color: #666666;
+}
+
+.search-submit-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background: #ffffff;
+    color: #1a1a1a;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+
+.search-submit-btn:hover {
+    background: #e0e0e0;
+}
+
+.search-submit-btn svg {
+    width: 20px;
+    height: 20px;
 }
 
 /* ========== SIDE PANELS ========== */

@@ -9,6 +9,8 @@ import com.jusdots.jusbrowse.data.repository.DownloadRepository
 import com.jusdots.jusbrowse.data.repository.PreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -21,7 +23,7 @@ class DownloadReceiver(
     private val preferencesRepository: PreferencesRepository
 ) : BroadcastReceiver() {
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE) {
@@ -45,7 +47,7 @@ class DownloadReceiver(
                         // Convert URI to File Path (Robust)
                         val filePath = resolveFilePath(context, fileUri)
                         
-                        // Trigger Scan — APK install is deferred until scan completes clean
+                        // Trigger Scan — validates download ownership inside coroutine
                         performSecurityScan(context, downloadId, fileName, filePath)
                     }
                 }
@@ -96,9 +98,17 @@ class DownloadReceiver(
         }
     }
 
+    fun cleanup() {
+        scope.cancel()
+    }
+
     private fun performSecurityScan(context: Context, downloadId: Long, fileName: String, filePath: String) {
         scope.launch {
             try {
+                // Validate this download was initiated by our app
+                val ourDownload = downloadRepository.allDownloads.first().find { it.systemDownloadId == downloadId }
+                if (ourDownload == null) return@launch
+
                 // Get API Keys from Preferences
                 val vtKey = preferencesRepository.virusTotalApiKey.first()
                 val koodousKey = preferencesRepository.koodousApiKey.first()
@@ -118,11 +128,6 @@ class DownloadReceiver(
 
                 // Update Database with Result
                 updateDownloadStatus(downloadId, fileName, result.status, result.detail)
-
-                // Only auto-open APK if scan result is clean
-                if (fileName.lowercase().endsWith(".apk") && result.status == "Clean") {
-                    installApk(context, filePath)
-                }
             } catch (_: Exception) {
                 updateDownloadStatus(downloadId, fileName, "Error", "Scan failed")
             }

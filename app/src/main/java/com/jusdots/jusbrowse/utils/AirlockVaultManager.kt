@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
+import android.util.Log
 import com.jusdots.jusbrowse.ui.components.MediaData
 import com.jusdots.jusbrowse.ui.components.MediaItem
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +83,7 @@ object AirlockVaultManager {
     private fun downloadAndConvertImage(urlString: String, dir: File): File? {
         return try {
             val url = URL(urlString)
+            if (url.protocol != "https") return null
             val connection = url.openConnection()
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
@@ -106,7 +108,7 @@ object AirlockVaultManager {
             bitmap.recycle()
             file
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("AirlockVaultManager", "Failed to download and convert image from $urlString", e)
             null
         }
     }
@@ -114,6 +116,7 @@ object AirlockVaultManager {
     private fun downloadFile(urlString: String, dir: File, prefix: String): File? {
         return try {
             val url = URL(urlString)
+            if (url.protocol != "https") return null
             val connection = url.openConnection()
             connection.connectTimeout = 8000
             connection.readTimeout = 8000
@@ -128,7 +131,7 @@ object AirlockVaultManager {
             input.close()
             file
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("AirlockVaultManager", "Failed to download file from $urlString", e)
             null
         }
     }

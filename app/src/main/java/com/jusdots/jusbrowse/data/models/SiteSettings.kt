@@ -26,5 +26,8 @@ data class SiteSettings(
     // Sensor/API permissions (Layer 8)
     val geolocationAllowed: Boolean = false,
     val cameraAllowed: Boolean = false,
-    val microphoneAllowed: Boolean = false
+    val microphoneAllowed: Boolean = false,
+
+    // WebAuthn/Passkey permissions (Layer 9)
+    val credentialAllowed: Boolean = true
 )

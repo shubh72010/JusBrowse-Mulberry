@@ -39,8 +39,7 @@ const elements = {
     historyList: document.getElementById('historyList'),
     contextMenu: document.getElementById('contextMenu'),
     newTabPage: document.getElementById('newTabPage'),
-    newTabSearch: document.getElementById('newTabSearch'),
-    speedDialGrid: document.getElementById('speedDialGrid')
+    newTabSearch: document.getElementById('newTabSearch')
 };
 
 // ========== TAB MANAGEMENT ==========
@@ -557,23 +556,6 @@ function showSuggestions(query) {
     }
 }
 
-// ========== SPEED DIAL ==========
-function renderSpeedDial() {
-    const topSites = state.bookmarks.slice(0, 8);
-    elements.speedDialGrid.innerHTML = topSites.map(site => `
-        <div class="speed-dial-item" data-url="${site.url}">
-            <div class="speed-dial-icon">${site.icon}</div>
-            <div class="speed-dial-title">${site.title}</div>
-        </div>
-    `).join('');
-
-    elements.speedDialGrid.querySelectorAll('.speed-dial-item').forEach(item => {
-        item.addEventListener('click', () => {
-            navigate(item.dataset.url);
-        });
-    });
-}
-
 // ========== STORAGE ==========
 function saveToLocalStorage() {
     try {
@@ -646,6 +628,20 @@ function initEventListeners() {
         if (e.key === 'Enter') {
             navigate(elements.newTabSearch.value);
         }
+    });
+
+    // Startpage Search Button
+    document.getElementById('startpageSearchBtn')?.addEventListener('click', () => {
+        navigate(elements.newTabSearch.value);
+    });
+
+    // Startpage Action Buttons
+    document.getElementById('startpageBookmarksBtn')?.addEventListener('click', () => {
+        elements.bookmarksBtn.click();
+    });
+
+    document.getElementById('startpageSettingsBtn')?.addEventListener('click', () => {
+        elements.settingsBtn.click();
     });
 
     // Panels
@@ -802,7 +798,6 @@ function initEventListeners() {
 function init() {
     loadFromLocalStorage();
     initEventListeners();
-    renderSpeedDial();
 
     // Load settings
     document.getElementById('darkModeToggle').checked = state.settings.darkMode;

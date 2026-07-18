@@ -17,8 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,14 +57,19 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.viewinterop.AndroidView
+import org.mozilla.geckoview.GeckoView
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.jusdots.jusbrowse.security.GeckoSessionFactory
 import com.jusdots.jusbrowse.data.models.BrowserTab
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import android.content.ClipData
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
 import androidx.core.content.ContextCompat
 import java.io.File
 
@@ -73,14 +77,22 @@ import java.io.File
 @Composable
 fun AddressBarWithGeckoView(
     viewModel: BrowserViewModel,
-    tabIndex: Int,
+    tab: BrowserTab?,
     onOpenAirlockGallery: () -> Unit,
+    alwaysShowUrl: Boolean = false,
+    reduceAnim: Boolean = false,
+    forceStatic: Boolean = false,
+    pillBottomMarginDp: Int = 90,
+    pillCollapsedWidthDp: Int = 260,
+    showProgressBar: Boolean = true,
+    startPageBranding: String = "full",
+    scrimDarkness: String = "normal",
     modifier: Modifier = Modifier,
     stickerContent: @Composable () -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
-    val tab = if (tabIndex in viewModel.tabs.indices) viewModel.tabs[tabIndex] else null
+    val tabIndex = tab?.id?.let { viewModel.tabDescriptors.indexOfFirst { d -> d.id == it } }?.coerceAtLeast(0) ?: 0
     val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle(initialValue = "DuckDuckGo")
     val customSearchEngineUrl by viewModel.customSearchEngineUrl.collectAsStateWithLifecycle(initialValue = "")
     val protectionWhitelist by viewModel.protectionWhitelist.collectAsStateWithLifecycle(initialValue = "")
@@ -99,6 +111,13 @@ fun AddressBarWithGeckoView(
     var pageProgress by remember { mutableStateOf(0f) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
+    
+    val errorPageDelegate = remember { com.jusdots.jusbrowse.ui.delegate.StraitErrorPageDelegate() }
+    val permissionDelegate = remember {
+        com.jusdots.jusbrowse.ui.delegate.StraitPermissionDelegate(
+            com.jusdots.jusbrowse.BrowserApplication.database.siteSettingsDao()
+        )
+    }
     
     // Defers session creation to avoid 6s main thread lock during UI initialization
     val sessionState = remember { mutableStateOf<GeckoSession?>(null) }
@@ -138,6 +157,7 @@ fun AddressBarWithGeckoView(
 
     var isDragging by remember { mutableStateOf(false) }
     var hasGainedFocus by remember { mutableStateOf(false) }
+
 
     // Fullscreen state (GeckoView fullscreen delegate)
     var isFullscreen by remember { mutableStateOf(false) }
@@ -195,13 +215,17 @@ fun AddressBarWithGeckoView(
             when {
                 data?.data != null -> uriList.add(data.data!!)
                 data?.clipData != null -> {
-                    val count = data.clipData!!.itemCount
+                    val clipData = data.clipData!!
+                    val count = clipData.itemCount
                     for (i in 0 until count) {
-                        uriList.add(data.clipData!!.getItemAt(i).uri)
+                        uriList.add(clipData.getItemAt(i).uri)
                     }
                 }
-                cameraPhotoFile != null && cameraPhotoFile!!.exists() && cameraPhotoFile!!.length() > 0 -> {
-                    uriList.add(cameraImageUri!!)
+                else -> {
+                    val photo = cameraPhotoFile
+                    if (photo != null && photo.exists() && photo.length() > 0) {
+                        cameraImageUri?.let { uriList.add(it) }
+                    }
                 }
             }
         }
@@ -218,6 +242,33 @@ fun AddressBarWithGeckoView(
         pendingGeckoFilePrompt = null
         cameraImageUri = null
         cameraPhotoFile = null
+    }
+
+    val speechLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            if (!matches.isNullOrEmpty()) {
+                urlTextFieldValue = TextFieldValue(matches[0], selection = TextRange(matches[0].length))
+                val query = matches[0].trim()
+                if (query.isNotEmpty()) {
+                    val targetUrl = if (viewModel.isUrlQuery(query)) viewModel.getSearchUrl(query, searchEngine, customSearchEngineUrl) else if (!query.contains("://")) "https://$query" else query
+                    viewModel.navigateToUrlForIndex(tabIndex, targetUrl)
+                    session?.loadUri(targetUrl)
+                    isPillExpanded = false
+                    focusManager.clearFocus()
+                }
+            }
+        }
+    }
+
+    val hasSpeechRecognizer = remember {
+        val pm = context.packageManager
+        val voiceIntent = RecognizerIntent.getVoiceDetailsIntent(context)
+        pm.hasSystemFeature(PackageManager.FEATURE_MICROPHONE) &&
+            voiceIntent != null &&
+            pm.queryIntentActivities(voiceIntent, 0).isNotEmpty()
     }
 
     fun launchGeckoChooser(ctx: android.content.Context, prompt: org.mozilla.geckoview.GeckoSession.PromptDelegate.FilePrompt, hasCameraPermission: Boolean) {
@@ -302,11 +353,16 @@ fun AddressBarWithGeckoView(
                             }
                             viewModel.navigateToUrlForIndex(tabIndex, it)
                         }
+                        // Set favicon from domain
+                        val host = try { android.net.Uri.parse(it).host } catch (e: Exception) { null }
+                        if (host != null) {
+                            viewModel.updateTabFavicon(tabIndex, "https://www.google.com/s2/favicons?domain=$host&sz=64")
+                        }
                     }
                 }
                 
                 override fun onLoadError(session: GeckoSession, uri: String?, error: org.mozilla.geckoview.WebRequestError): GeckoResult<String>? {
-                    return null
+                    return errorPageDelegate.onLoadError(session, uri, error)
                 }
                 
                 override fun onCanGoBack(session: GeckoSession, canBack: Boolean) {
@@ -386,11 +442,13 @@ fun AddressBarWithGeckoView(
             session.navigationDelegate = navigationDelegate
             session.contentDelegate = contentDelegate
             session.promptDelegate = promptDelegate
+            session.permissionDelegate = permissionDelegate
         }
         onDispose {
             session?.progressDelegate = null
             session?.navigationDelegate = null
             session?.contentDelegate = null
+            session?.permissionDelegate = null
         }
     }
 
@@ -404,73 +462,79 @@ fun AddressBarWithGeckoView(
         }
     }
 
-    // Animations (Preserved)
-    val animatedPillWidthDp by animateDpAsState(
-        targetValue = if (showPillMenu) 360.dp else if (isPillExpanded) 360.dp else 260.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "pillWidthDp"
+    // Single normalized animation progress for the pill.
+    // Level 0 = collapsed, 1 = expanded (width only), 2 = menu (height + radius).
+    // One animation clock instead of three independent animateDpAsState calls.
+    val pillTargetLevel: Float = when {
+        showPillMenu -> 2f
+        isPillExpanded -> 1f
+        else -> 0f
+    }
+    val snapAnim = forceStatic || reduceAnim
+    val pillLevel by animateFloatAsState(
+        targetValue = pillTargetLevel,
+        animationSpec = if (snapAnim) tween<Float>(0) else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "pillLevel"
     )
-    val animatedPillHeight by animateDpAsState(
-        targetValue = if (showPillMenu) 580.dp else 56.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "pillHeight"
-    )
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = if (showPillMenu) 32.dp else 28.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "pillCorner"
-    )
+
+    val collapsedWidth = pillCollapsedWidthDp.dp
+    val widthProgress = pillLevel.coerceIn(0f, 1f)
+    val menuProgress = ((pillLevel - 1f) / 1f).coerceIn(0f, 1f)
+
+    val animatedPillWidthDp = collapsedWidth + (360.dp - collapsedWidth) * widthProgress
+    val animatedPillHeight = if (pillLevel <= 1f) 56.dp else 56.dp + (580.dp - 56.dp) * menuProgress
+    val animatedCornerRadius = if (pillLevel <= 1f) 28.dp else 28.dp + (32.dp - 28.dp) * menuProgress
 
     val bottomBarHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { 200.dp.toPx() }
     val bottomBarOffsetHeightPxState by viewModel.bottomBarOffsetHeightPx.collectAsStateWithLifecycle()
 
-    val nestedScrollConnection = remember(isPillExpanded) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (isPillExpanded) return Offset.Zero
-                val delta = available.y
-                val newOffset = bottomBarOffsetHeightPxState + (-delta)
-                viewModel.updateBottomBarOffset(newOffset.coerceIn(0f, bottomBarHeightPx))
-                return Offset.Zero
-            }
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (available.y > 10f && bottomBarOffsetHeightPxState > 0f) {
-                    viewModel.triggerRevealBottomBar()
-                }
-                return Offset.Zero
-            }
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
-            .nestedScroll(nestedScrollConnection)
-            .pointerInput(session) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val nativeEvent = event.motionEvent
-                        
-                        // 1. Mouse Buttons (Back/Forward)
-                        if (nativeEvent != null && event.type == PointerEventType.Press) {
-                            if (nativeEvent.isButtonPressed(MotionEvent.BUTTON_BACK)) {
-                                if (canGoBack) session?.goBack()
-                            } else if (nativeEvent.isButtonPressed(MotionEvent.BUTTON_FORWARD)) {
-                                if (canGoForward) session?.goForward()
+            .let { m ->
+                if (forceStatic) m else {
+                    val nestedScrollConnection = remember(isPillExpanded) {
+                        object : NestedScrollConnection {
+                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                if (isPillExpanded) return Offset.Zero
+                                val delta = available.y
+                                val newOffset = bottomBarOffsetHeightPxState + (-delta)
+                                viewModel.updateBottomBarOffset(newOffset.coerceIn(0f, bottomBarHeightPx))
+                                return Offset.Zero
                             }
-                        }
-
-                        // 2. Trackpad Horizontal Scroll (Back/Forward Gestures)
-                        if (event.type == PointerEventType.Scroll && !isPillExpanded) {
-                            val delta = event.changes.first().scrollDelta
-                            if (delta.x > 2.0f) { // Swipe Right -> Back
-                                if (canGoBack) session?.goBack()
-                            } else if (delta.x < -2.0f) { // Swipe Left -> Forward
-                                if (canGoForward) session?.goForward()
+                            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                                if (available.y > 10f && bottomBarOffsetHeightPxState > 0f) {
+                                    viewModel.triggerRevealBottomBar()
+                                }
+                                return Offset.Zero
                             }
                         }
                     }
+                    m
+                        .nestedScroll(nestedScrollConnection)
+                        .pointerInput(session) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Final)
+                                    val nativeEvent = event.motionEvent
+
+                                    if (event.type == PointerEventType.Scroll && !isPillExpanded) {
+                                        val delta = event.changes.first().scrollDelta
+                                        if (delta.x > 2.0f) {
+                                            if (canGoBack) session?.goBack()
+                                        } else if (delta.x < -2.0f) {
+                                            if (canGoForward) session?.goForward()
+                                        }
+                                    } else if (nativeEvent != null && event.type == PointerEventType.Press) {
+                                        if (nativeEvent.isButtonPressed(MotionEvent.BUTTON_BACK)) {
+                                            if (canGoBack) session?.goBack()
+                                        } else if (nativeEvent.isButtonPressed(MotionEvent.BUTTON_FORWARD)) {
+                                            if (canGoForward) session?.goForward()
+                                        }
+                                    }
+                                }
+                            }
+                        }
                 }
             }
     ) {
@@ -479,9 +543,46 @@ fun AddressBarWithGeckoView(
             if (tab != null && tab.url != "about:blank") {
                 key(tab.id) {
                     if (session != null) {
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        val swipeZonePx = with(density) { 120.dp.toPx() }
                         GeckoWebView(
                             session = session,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            onViewCreated = { geckoView ->
+                                if (!forceStatic) {
+                                    var touchStartY = -1f
+                                    var swipeDetected = false
+                                    geckoView.setOnTouchListener { v, event ->
+                                        when (event.action) {
+                                            MotionEvent.ACTION_DOWN -> {
+                                                val h = v.height.toFloat()
+                                                if (event.y > h - swipeZonePx) {
+                                                    touchStartY = event.y
+                                                    swipeDetected = false
+                                                } else {
+                                                    touchStartY = -1f
+                                                }
+                                                false
+                                            }
+                                            MotionEvent.ACTION_MOVE -> {
+                                                if (touchStartY >= 0f && !swipeDetected &&
+                                                    event.y - touchStartY < -30f
+                                                ) {
+                                                    swipeDetected = true
+                                                    viewModel.triggerRevealBottomBar()
+                                                }
+                                                false
+                                            }
+                                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                                touchStartY = -1f
+                                                swipeDetected = false
+                                                false
+                                            }
+                                            else -> false
+                                        }
+                                    }
+                                }
+                            }
                         )
                     } else {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -494,16 +595,32 @@ fun AddressBarWithGeckoView(
                     }
                 }
             } else {
-                StartPageHero()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    StartPageHero(startPageBranding)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                            .align(Alignment.BottomCenter)
+                            .pointerInput(Unit) {
+                                detectTapGestures { viewModel.triggerRevealBottomBar() }
+                            }
+                    )
+                }
             }
         }
 
         // Dismiss Scrim
+        val scrimAlpha = when (scrimDarkness) {
+            "light" -> 0.4f
+            "dark" -> 0.9f
+            else -> 0.7f
+        }
         if (isPillExpanded || showPillMenu) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(if (showPillMenu) Color.Black.copy(alpha = 0.7f) else Color.Transparent)
+                    .background(if (showPillMenu) Color.Black.copy(alpha = scrimAlpha) else Color.Transparent)
                     .clickable(
                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         indication = null
@@ -544,7 +661,7 @@ fun AddressBarWithGeckoView(
                     Column(horizontalAlignment = Alignment.End) {
                         Button(
                             onClick = {
-                                pendingDownloadUrl?.let { url ->
+                                pendingDownloadUrl?.let { url: String ->
                                     viewModel.startDownload(context, url, localDownloadInfo.fileName)
                                 }
                                 clearDownloadState()
@@ -597,12 +714,13 @@ fun AddressBarWithGeckoView(
         )
 
         // 2. Floating Pill Bar (Bottom) - PRESERVED STYLING
+        val primaryColor = MaterialTheme.colorScheme.primary
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(bottom = 90.dp)
+                .padding(bottom = pillBottomMarginDp.dp)
                 .offset {
                     androidx.compose.ui.unit.IntOffset(
                         pillOffset.value.roundToInt(),
@@ -648,26 +766,24 @@ fun AddressBarWithGeckoView(
                     pathMeasure.setPath(androidPath, false)
                     val length = pathMeasure.length
 
+                    val paint = android.graphics.Paint().apply {
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeCap = android.graphics.Paint.Cap.ROUND
+                        isAntiAlias = false
+                    }
+
                     onDrawWithContent {
                         drawContent()
-                        if (tab?.isLoading == true && animatedProgress > 0f) {
+                        if (tab?.isLoading == true && animatedProgress > 0f && showProgressBar) {
                             val progressStrokeWidth = 7.dp.toPx()
                             val stopDistance = length * animatedProgress
                             val resultPath = android.graphics.Path()
                             pathMeasure.getSegment(0f, stopDistance, resultPath, true)
                             
+                            paint.color = primaryColor.toArgb()
+                            paint.strokeWidth = progressStrokeWidth
                             drawIntoCanvas { canvas ->
-                                canvas.nativeCanvas.drawPath(
-                                    resultPath,
-                                    android.graphics.Paint().apply {
-                                        color = SecureGreen.toArgb()
-                                        style = android.graphics.Paint.Style.STROKE
-                                        this.strokeWidth = progressStrokeWidth
-                                        strokeCap = android.graphics.Paint.Cap.ROUND
-                                        isAntiAlias = true
-                                        setShadowLayer(20f, 0f, 0f, SecureGreen.toArgb())
-                                    }
-                                )
+                                canvas.nativeCanvas.drawPath(resultPath, paint)
                             }
                         }
                     }
@@ -757,8 +873,12 @@ fun AddressBarWithGeckoView(
                 AnimatedContent(
                     targetState = showPillMenu,
                     transitionSpec = {
-                        fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.92f) togetherWith
-                        fadeOut(animationSpec = tween(90))
+                        if (reduceAnim) {
+                            fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                        } else {
+                            fadeIn(animationSpec = tween(220, delayMillis = 90)) + scaleIn(initialScale = 0.92f) togetherWith
+                            fadeOut(animationSpec = tween(90))
+                        }
                     },
                     label = "pillContent"
                 ) { isMenuOpen ->
@@ -800,10 +920,10 @@ fun AddressBarWithGeckoView(
                                             com.jusdots.jusbrowse.security.ContainerManager.AVAILABLE_CONTAINERS.forEach { containerId ->
                                                 val name = com.jusdots.jusbrowse.security.ContainerManager.getContainerName(containerId)
                                                 val color = when (containerId) {
-                                                    "personal" -> Color(0xFF4CAF50)
-                                                    "work" -> Color(0xFF2196F3)
-                                                    "banking" -> Color(0xFFFFC107)
-                                                    "shopping" -> Color(0xFFE91E63)
+                                                    "personal" -> ContainerPersonal
+                                                    "work" -> ContainerWork
+                                                    "banking" -> ContainerBanking
+                                                    "shopping" -> ContainerShopping
                                                     else -> MaterialTheme.colorScheme.primary
                                                 }
                                                 Column(
@@ -813,7 +933,7 @@ fun AddressBarWithGeckoView(
                                                         .padding(8.dp)
                                                 ) {
                                                     Surface(shape = CircleShape, color = color.copy(alpha = 0.2f), modifier = Modifier.size(48.dp), border = BorderStroke(1.dp, color.copy(alpha = 0.4f))) {
-                                                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Layers, null, tint = color, modifier = Modifier.size(24.dp)) }
+                                                        Box(contentAlignment = Alignment.Center) { Icon(JusBrowseIcons.Layers, null, tint = color, modifier = Modifier.size(24.dp)) }
                                                     }
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     Text(text = name, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -822,7 +942,7 @@ fun AddressBarWithGeckoView(
                                         }
                                         Spacer(modifier = Modifier.height(16.dp))
                                         TextButton(onClick = { showContainers = false }) {
-                                            Icon(Icons.Default.ArrowBack, null)
+                                            Icon(JusBrowseIcons.ArrowBack, null)
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text("Back to Menu")
                                         }
@@ -830,24 +950,18 @@ fun AddressBarWithGeckoView(
                                 } else {
                                     val currentDomain = try { android.net.Uri.parse(tab?.url ?: "").host ?: "" } catch (e: Exception) { "" }
                                      val menuItems = listOf<Triple<Any, String, () -> Unit>>(
-                                         Triple(Icons.Default.Refresh, "Refresh", { menuSession?.reload(); showPillMenu = false }),
-                                         Triple(Icons.Default.Home, "Home", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.BROWSER); showPillMenu = false }),
-                                         Triple(Icons.Default.GridView, "Multi-View", {
-                                             viewModel.toggleMultiViewMode()
-                                             showPillMenu = false
-                                         }),
+                                         Triple(JusBrowseIcons.Home, "Home", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.BROWSER); showPillMenu = false }),
                                          Triple("LOGO", if (isWhitelisted) "Unwhitelist" else "Whitelist", {
                                              if (currentDomain.isNotEmpty()) viewModel.toggleDomainWhitelist(currentDomain)
                                              showPillMenu = false
                                          }),
-                                         Triple(Icons.Default.History, "History", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.HISTORY); showPillMenu = false }),
-                                         Triple(Icons.Default.Download, "Downloads", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.DOWNLOADS); showPillMenu = false }),
-                                         Triple(Icons.Default.PhotoLibrary, "Gallery", { onOpenAirlockGallery(); showPillMenu = false }),
-                                         Triple(Icons.Default.VpnKey, "Private", { viewModel.createNewTab(isPrivate = true); showPillMenu = false }),
-                                         Triple(Icons.Default.Assignment, "Trackers", { showTrackerDetails = true; showPillMenu = false }),
-                                         Triple(Icons.Default.Layers, "Container", { showContainers = true }),
-                                         Triple(Icons.Default.Settings, "Settings", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.SETTINGS); showPillMenu = false }),
-                                         Triple(Icons.Default.Warning, "Boomer", { viewModel.toggleBoomerMode(); showPillMenu = false })
+                                         Triple(JusBrowseIcons.History, "History", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.HISTORY); showPillMenu = false }),
+                                         Triple(JusBrowseIcons.Download, "Downloads", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.DOWNLOADS); showPillMenu = false }),
+                                         Triple(JusBrowseIcons.VpnKey, "Private", { viewModel.createNewTab(isPrivate = true); showPillMenu = false }),
+                                         Triple(JusBrowseIcons.Assignment, "Trackers", { showTrackerDetails = true; showPillMenu = false }),
+                                         Triple(JusBrowseIcons.Layers, "Container", { showContainers = true }),
+                                         Triple(JusBrowseIcons.Settings, "Settings", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.SETTINGS); showPillMenu = false }),
+                                         Triple(JusBrowseIcons.Warning, "Boomer", { viewModel.toggleBoomerMode(); showPillMenu = false })
                                      )
 
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -959,7 +1073,22 @@ fun AddressBarWithGeckoView(
                                 if (urlTextFieldValue.text.isNotEmpty()) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     FilledTonalIconButton(onClick = { urlTextFieldValue = TextFieldValue("") }, modifier = Modifier.size(34.dp)) {
-                                        Icon(Icons.Default.Clear, null, modifier = Modifier.size(16.dp))
+                                        Icon(JusBrowseIcons.Clear, null, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                if (hasSpeechRecognizer && urlTextFieldValue.text.isEmpty()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+                                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Search with voice")
+                                            }
+                                            speechLauncher.launch(intent)
+                                        },
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Icon(JusBrowseIcons.Mic, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
@@ -978,7 +1107,7 @@ fun AddressBarWithGeckoView(
                                 ) {
                                     val isSecure = sessionSecurityInfo?.isSecure == true
                                     Icon(
-                                        imageVector = if (tab?.isPrivate == true) Icons.Default.VpnKey else if (isWhitelisted) Icons.Default.VerifiedUser else if (isSecure) Icons.Default.Lock else Icons.Default.LockOpen,
+                                        imageVector = if (tab?.isPrivate == true) JusBrowseIcons.VpnKey else if (isWhitelisted) JusBrowseIcons.VerifiedUser else if (isSecure) JusBrowseIcons.Lock else JusBrowseIcons.LockOpen,
                                         contentDescription = "Privacy Status",
                                         tint = if (isWhitelisted) SecureGreen else if (trackers.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
@@ -991,13 +1120,15 @@ fun AddressBarWithGeckoView(
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = urlTextFieldValue.text,
-                                    color = Color.White,
-                                    modifier = Modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen, blendMode = BlendMode.Difference),
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
+                                if (alwaysShowUrl) {
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = urlTextFieldValue.text,
+                                        color = Color.White,
+                                        modifier = Modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen, blendMode = BlendMode.Difference),
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -1033,7 +1164,7 @@ fun AddressBarWithGeckoView(
                                 val tracker = trackerList[index]
                                 Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f), modifier = Modifier.fillMaxWidth()) {
                                     Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Block, null, tint = MaterialTheme.colorScheme.error)
+                                        Icon(JusBrowseIcons.Block, null, tint = MaterialTheme.colorScheme.error)
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(text = tracker.domain, style = MaterialTheme.typography.bodyMedium)
                                     }
@@ -1046,19 +1177,19 @@ fun AddressBarWithGeckoView(
             }
         }
 
-        // Fullscreen video overlay
+        // Fullscreen video overlay — transparent, only shows exit button
         if (isFullscreen) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            Box(modifier = Modifier.fillMaxSize().clickable { session?.exitFullScreen() }) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(84.dp)
-                        .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent)))
+                        .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent)))
                         .statusBarsPadding().padding(horizontal = 8.dp)
                 ) {
                     IconButton(
                         onClick = { session?.exitFullScreen() },
                         modifier = Modifier.align(Alignment.CenterStart)
                     ) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Exit Fullscreen", tint = Color.White)
+                        Icon(imageVector = JusBrowseIcons.Close, contentDescription = "Exit Fullscreen", tint = Color.White)
                     }
                 }
             }
@@ -1094,7 +1225,7 @@ fun AddressBarWithGeckoView(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        imageVector = Icons.Default.Download,
+                        imageVector = JusBrowseIcons.Download,
                         contentDescription = "Drop",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(32.dp)
@@ -1118,7 +1249,7 @@ fun AddressBarWithGeckoView(
                                     DragEvent.ACTION_DROP -> {
                                         val clipData = event.clipData
                                         if (clipData != null && clipData.itemCount > 0) {
-                                            val url = clipData.getItemAt(0).text.toString()
+                                            val url = clipData.getItemAt(0)?.text?.toString() ?: ""
                                             
                                             // Validate URL first
                                             val validation = com.jusdots.jusbrowse.security.DownloadValidator.validateDownload(
@@ -1170,20 +1301,33 @@ fun AddressBarWithGeckoView(
 
 
 @Composable
-private fun StartPageHero() {
-    val primary = MaterialTheme.colorScheme.primary
-    val pulseAnim = rememberInfiniteTransition(label = "shieldPulse")
-    val shieldScale by pulseAnim.animateFloat(initialValue = 0.94f, targetValue = 1.06f, animationSpec = infiniteRepeatable(animation = tween(2200, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "shieldScale")
-    val glowAlpha by pulseAnim.animateFloat(initialValue = 0.10f, targetValue = 0.22f, animationSpec = infiniteRepeatable(animation = tween(2200, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "glowAlpha")
-
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
-            Box(modifier = Modifier.size(120.dp).drawBehind { drawCircle(brush = Brush.radialGradient(colors = listOf(primary.copy(alpha = glowAlpha), Color.Transparent))) })
-            AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(R.drawable.ic_launcher_playstore).crossfade(true).build(), contentDescription = null, modifier = Modifier.size(68.dp).scale(shieldScale))
+private fun StartPageHero(branding: String = "full") {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        if (branding != "clean") {
+            Icon(
+                painter = painterResource(R.drawable.ic_launcher_playstore),
+                contentDescription = null,
+                modifier = Modifier.size(56.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(text = "JusBrowse", style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "A product of JusDots.", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Light), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+        if (branding == "full") {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "JusBrowse",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "by JusDots",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Light),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
     }
 }

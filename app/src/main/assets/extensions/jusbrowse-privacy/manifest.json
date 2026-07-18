@@ -39,5 +39,8 @@
             "match_about_blank": true
         }
     ],
-    "web_accessible_resources": []
+    "web_accessible_resources": [
+        "adblock_list.txt",
+        "easyprivacy.txt"
+    ]
 }

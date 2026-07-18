@@ -7,10 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.VpnKey
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -124,7 +121,7 @@ fun TabWindow(
                         PrivateTabIndicator()
                     } else {
                         Icon(
-                            Icons.Default.VpnKey,
+                            JusBrowseIcons.VpnKey,
                             contentDescription = "Tab",
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
@@ -139,7 +136,7 @@ fun TabWindow(
                 }
                 
                 IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Close, "Close Window", modifier = Modifier.size(18.dp))
+                    Icon(JusBrowseIcons.Close, "Close Window", modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -161,7 +158,7 @@ fun TabWindow(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                Icons.Filled.Pause,
+                                JusBrowseIcons.Pause,
                                 contentDescription = "Suspended",
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
                                 modifier = Modifier.size(48.dp)

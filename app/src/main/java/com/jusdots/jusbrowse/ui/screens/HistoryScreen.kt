@@ -3,9 +3,7 @@ package com.jusdots.jusbrowse.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +31,11 @@ fun HistoryScreen(
 ) {
     val history by viewModel.history.collectAsStateWithLifecycle(initialValue = emptyList())
     val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(history) {
+        isLoading = false
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -41,13 +44,13 @@ fun HistoryScreen(
                 title = { Text("History", color = MaterialTheme.colorScheme.primary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
+                        Icon(JusBrowseIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 actions = {
                     if (history.isNotEmpty()) {
                         IconButton(onClick = { viewModel.clearHistory() }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear All", tint = MaterialTheme.colorScheme.primary)
+                            Icon(JusBrowseIcons.Delete, contentDescription = "Clear All", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
@@ -57,7 +60,16 @@ fun HistoryScreen(
             )
         }
     ) { paddingValues ->
-        if (history.isEmpty()) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (history.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -108,7 +120,7 @@ fun HistoryScreen(
                         },
                         trailingContent = {
                             IconButton(onClick = { viewModel.deleteHistoryItem(item) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                                Icon(JusBrowseIcons.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                             }
                         },
                         modifier = Modifier.padding(horizontal = 4.dp),

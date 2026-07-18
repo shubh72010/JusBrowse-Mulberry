@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="browser-container">
@@ -177,21 +177,55 @@
             </div>
         </div>
 
-        <!-- New Tab Page -->
+        <!-- New Tab Page (Starit Startpage) -->
         <div class="new-tab-page" id="newTabPage">
-            <div class="new-tab-content">
-                <h1 class="browser-logo">JusBrowse</h1>
-                <div class="search-box-large">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path d="m21 21-4.35-4.35"/>
-                    </svg>
-                    <input type="text" id="newTabSearch" placeholder="Search the web...">
+            <div class="startpage">
+                <div class="startpage-actions">
+                    <button class="startpage-action-btn" id="startpageDownloadBtn" title="Download">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </button>
+                    <button class="startpage-action-btn" id="startpageBookmarksBtn" title="Bookmarks">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                        </svg>
+                    </button>
+                    <button class="startpage-action-btn" id="startpageSettingsBtn" title="Settings">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6m0 6v6m5.2-14.8l-4.2 4.2m-6 6l-4.2 4.2M23 12h-6m-6 0H1m14.8 5.2l-4.2-4.2m-6-6l-4.2-4.2"/>
+                        </svg>
+                    </button>
                 </div>
-                <div class="speed-dial">
-                    <h3>Quick Access</h3>
-                    <div class="speed-dial-grid" id="speedDialGrid">
-                        <!-- Speed dial items will be added here -->
+
+                <div class="startpage-brand">
+                    <div class="brand-logo">
+                        <svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="40" cy="40" r="35"/>
+                            <ellipse cx="40" cy="40" rx="14" ry="35"/>
+                            <line x1="5" y1="40" x2="75" y2="40"/>
+                            <line x1="40" y1="5" x2="40" y2="75"/>
+                        </svg>
+                    </div>
+                    <span class="brand-text">Browser</span>
+                </div>
+
+                <div class="startpage-search-section">
+                    <span class="bookmarks-label">Bookmarks</span>
+                    <div class="startpage-search">
+                        <input type="text" id="newTabSearch" placeholder="Search anything..." autocomplete="off">
+                        <button class="search-submit-btn" id="startpageSearchBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="m21 21-4.35-4.35"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>

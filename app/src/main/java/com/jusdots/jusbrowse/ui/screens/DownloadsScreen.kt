@@ -1,18 +1,20 @@
 package com.jusdots.jusbrowse.ui.screens
 
+import android.content.Intent
+import android.os.Environment
+import android.webkit.MimeTypeMap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
@@ -20,9 +22,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jusdots.jusbrowse.data.models.DownloadItem
 import com.jusdots.jusbrowse.ui.viewmodel.BrowserViewModel
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,8 +37,28 @@ fun DownloadsScreen(
     viewModel: BrowserViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val downloads by viewModel.downloads.collectAsStateWithLifecycle(initialValue = emptyList())
     val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+
+    fun openFile(item: DownloadItem) {
+        try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val file = File(downloadsDir, item.fileName)
+            if (!file.exists()) return
+            val extension = item.fileName.substringAfterLast('.', "")
+            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "*/*"
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(Intent.createChooser(intent, "Open with"))
+        } catch (e: Exception) {
+            android.util.Log.e("DownloadsScreen", "Failed to open file: ${item.fileName}", e)
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -43,13 +67,13 @@ fun DownloadsScreen(
                 title = { Text("Downloads", color = MaterialTheme.colorScheme.primary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
+                        Icon(JusBrowseIcons.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 actions = {
                     if (downloads.isNotEmpty()) {
                         IconButton(onClick = { viewModel.clearDownloads() }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear All", tint = MaterialTheme.colorScheme.primary)
+                            Icon(JusBrowseIcons.Delete, contentDescription = "Clear All", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
@@ -68,7 +92,7 @@ fun DownloadsScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.Download,
+                        JusBrowseIcons.Download,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -88,7 +112,6 @@ fun DownloadsScreen(
                     .padding(paddingValues)
                     .padding(16.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .blur(15.dp)
                     .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
             ) {
@@ -96,6 +119,7 @@ fun DownloadsScreen(
                     DownloadListItem(
                         item = item,
                         onDelete = { viewModel.deleteDownload(item) },
+                        onOpen = { openFile(item) },
                         dateFormat = dateFormat
                     )
                     HorizontalDivider(
@@ -113,6 +137,7 @@ fun DownloadsScreen(
 fun DownloadListItem(
     item: DownloadItem,
     onDelete: () -> Unit,
+    onOpen: () -> Unit,
     dateFormat: SimpleDateFormat
 ) {
     ListItem(
@@ -185,10 +210,12 @@ fun DownloadListItem(
         },
         trailingContent = {
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                Icon(JusBrowseIcons.Delete, contentDescription = "Delete")
             }
         },
-        modifier = Modifier.padding(horizontal = 8.dp),
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .clickable(onClick = onOpen),
         colors = ListItemDefaults.colors(
             containerColor = Color.Transparent
         )
@@ -198,6 +225,6 @@ fun DownloadListItem(
 fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
+    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt().coerceAtMost(units.lastIndex)
     return String.format("%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }

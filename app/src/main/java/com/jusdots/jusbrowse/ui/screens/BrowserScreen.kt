@@ -2,8 +2,7 @@ package com.jusdots.jusbrowse.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -13,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.core.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerInputChange
 import com.jusdots.jusbrowse.ui.components.AddressBarWithGeckoView
@@ -39,6 +39,7 @@ import android.widget.VideoView
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.viewinterop.AndroidView
+import com.jusdots.jusbrowse.ui.theme.BrowserUiVariant
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +53,8 @@ fun BrowserScreen(
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val isMultiView by viewModel.isMultiViewMode.collectAsStateWithLifecycle()
     val showTabIcons by viewModel.showTabIcons.collectAsStateWithLifecycle(initialValue = false)
+    val uiVariant by viewModel.uiVariant.collectAsStateWithLifecycle(initialValue = BrowserUiVariant.DEFAULT.name)
+    val isSafeVariant = uiVariant == BrowserUiVariant.SAFE.name
 
     val context = LocalContext.current
     
@@ -91,6 +94,17 @@ fun BrowserScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        if (isSafeVariant && currentScreen == Screen.BROWSER && !isMultiView) {
+            SafeBrowserShell(
+                viewModel = viewModel,
+                activeTab = tabs.getOrNull(activeTabIndex),
+                tabs = tabs,
+                activeTabIndex = activeTabIndex,
+                modifier = modifier
+            )
+            return@Box
+        }
+
         val wallpaperUri by viewModel.startPageWallpaperUri.collectAsStateWithLifecycle(initialValue = null)
         val blurAmount by viewModel.startPageBlurAmount.collectAsStateWithLifecycle(initialValue = 0f)
         val backgroundPresetName by viewModel.backgroundPreset.collectAsStateWithLifecycle(initialValue = "NONE")
@@ -228,7 +242,7 @@ fun BrowserScreen(
                                 if (activeTabIndex in tabs.indices) {
                                     AddressBarWithGeckoView(
                                         viewModel = viewModel,
-                                        tabIndex = activeTabIndex,
+                                        tab = tabs.getOrNull(activeTabIndex),
                                         onOpenAirlockGallery = { openAirlockGallery() },
                                         modifier = Modifier.fillMaxSize(),
                                         stickerContent = {
@@ -295,16 +309,17 @@ fun BrowserScreen(
                                             ) {
                                                 BottomTabBar(
                                                     tabs = tabs,
-                                                    activeTabIndex = activeTabIndex,
-                                                    onTabSelected = { index -> 
-                                                        viewModel.switchTab(index) 
+                                                    activeTabId = tabs.getOrNull(activeTabIndex)?.id ?: "",
+                                                    onTabSelected = { index ->
+                                                        viewModel.switchTab(index)
                                                     },
                                                     onTabClosed = { index -> viewModel.closeTab(index) },
-                                                    onNewTab = { containerId -> 
-                                                        viewModel.createNewTab(containerId = containerId) 
+                                                    onNewTab = { containerId ->
+                                                        val currentGroupId = activeGroupId
+                                                        viewModel.createNewTab(containerId = containerId)
                                                         val newTabIndex = tabs.lastIndex
-                                                        if (newTabIndex >= 0) {
-                                                             viewModel.groupTabs(tabs[newTabIndex].id, activeGroupId!!)
+                                                        if (newTabIndex >= 0 && currentGroupId != null) {
+                                                             viewModel.groupTabs(tabs[newTabIndex].id, currentGroupId)
                                                         }
                                                     },
                                                     onGroupTabs = { draggedId, targetId -> 
@@ -321,7 +336,7 @@ fun BrowserScreen(
                                                     onClick = { viewModel.openTabGroup(null) },
                                                     modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
                                                 ) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Close Group")
+                                                    Icon(JusBrowseIcons.Close, contentDescription = "Close Group")
                                                 }
                                             }
                                         } else {
@@ -333,8 +348,8 @@ fun BrowserScreen(
                                     // Primary Tab Bar
                                     BottomTabBar(
                                         tabs = tabs,
-                                        activeTabIndex = activeTabIndex,
-                                        onTabSelected = { index -> 
+                                        activeTabId = tabs.getOrNull(activeTabIndex)?.id ?: "",
+                                        onTabSelected = { index ->
                                             val tab = tabs.getOrNull(index)
                                             if (tab?.isGroupMaster == true) {
                                                 viewModel.switchTab(index) // Switch explicitly to master tab when clicked
@@ -442,5 +457,113 @@ fun BrowserScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SafeBrowserShell(
+    viewModel: BrowserViewModel,
+    activeTab: com.jusdots.jusbrowse.data.models.BrowserTab?,
+    tabs: List<com.jusdots.jusbrowse.data.models.BrowserTab>,
+    activeTabIndex: Int,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
+    var showTabSwitcher by remember { mutableStateOf(false) }
+    var showUrlDialog by remember { mutableStateOf<String?>(null) }
+    val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle(initialValue = "DuckDuckGo")
+
+    val navigateSafely: (String) -> Unit = { input ->
+        val target = if (viewModel.isUrlQuery(input)) {
+            viewModel.getSearchUrl(input, searchEngine)
+        } else if (!input.contains("://")) {
+            "https://$input"
+        } else input
+        val tab = activeTab
+        if (tab != null) {
+            viewModel.navigateToUrlForIndex(activeTabIndex, target)
+            scope.launch { viewModel.getOrCreateGeckoSession(tab.id, tab.isPrivate, tab.containerId).loadUri(target) }
+        } else {
+            viewModel.createNewTab(url = target)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+    ) {
+        com.jusdots.jusbrowse.ui.components.safe.SafeTopBar(
+            currentUrl = activeTab?.url ?: "",
+            title = activeTab?.title ?: "",
+            canGoBack = activeTab?.canGoBack == true,
+            canGoForward = activeTab?.canGoForward == true,
+            tabCount = tabs.size,
+            isSecure = activeTab?.url?.startsWith("https://") == true,
+            onBack = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goBack() },
+            onForward = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goForward() },
+            onTabsClick = { showTabSwitcher = true },
+            onMenuAction = { action ->
+                when (action) {
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.NewTab -> { viewModel.createNewTab() }
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.NewPrivateTab -> { viewModel.createNewTab(isPrivate = true) }
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Bookmarks -> viewModel.navigateToScreen(Screen.BOOKMARKS)
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.History -> viewModel.navigateToScreen(Screen.HISTORY)
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Downloads -> viewModel.navigateToScreen(Screen.DOWNLOADS)
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Settings -> viewModel.navigateToScreen(Screen.SETTINGS)
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Share -> { }
+                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.EditUrl -> { showUrlDialog = activeTab?.url ?: "" }
+                }
+            }
+        )
+
+        com.jusdots.jusbrowse.ui.components.safe.SafeBrowserContent(
+            viewModel = viewModel,
+            activeTab = activeTab,
+            shortcuts = viewModel.pinnedShortcuts,
+            onNavigate = { url -> navigateSafely(url) },
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        )
+
+        com.jusdots.jusbrowse.ui.components.safe.SafeBottomBar(
+            canGoBack = activeTab?.canGoBack == true,
+            canGoForward = activeTab?.canGoForward == true,
+            tabCount = tabs.size,
+            onBack = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goBack() },
+            onForward = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goForward() },
+            onHome = {
+                val tab = activeTab
+                if (tab != null) {
+                    viewModel.navigateToUrlForIndex(activeTabIndex, "about:blank")
+                    scope.launch { viewModel.getOrCreateGeckoSession(tab.id, tab.isPrivate, tab.containerId).loadUri("about:blank") }
+                }
+            },
+            onTabs = { showTabSwitcher = true },
+            onMenu = { viewModel.navigateToScreen(Screen.SETTINGS) }
+        )
+    }
+
+    if (showTabSwitcher) {
+        com.jusdots.jusbrowse.ui.components.safe.SafeTabSwitcher(
+            tabs = tabs,
+            activeTabIndex = activeTabIndex,
+            onTabSelected = { idx -> viewModel.switchTab(idx) },
+            onTabClosed = { idx -> viewModel.closeTab(idx) },
+            onNewTab = { viewModel.createNewTab() },
+            onDismiss = { showTabSwitcher = false }
+        )
+    }
+
+    if (showUrlDialog != null) {
+        com.jusdots.jusbrowse.ui.components.safe.SafeUrlEntryDialog(
+            initialUrl = showUrlDialog ?: "",
+            onDismiss = { showUrlDialog = null },
+            onNavigate = { url ->
+                navigateSafely(url)
+                showUrlDialog = null
+            }
+        )
     }
 }

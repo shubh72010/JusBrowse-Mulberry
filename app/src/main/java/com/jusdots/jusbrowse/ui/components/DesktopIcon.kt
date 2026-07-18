@@ -5,8 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Public
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,33 +40,30 @@ fun DesktopIcon(
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .background(Color.White.copy(alpha = 0.2f), androidx.compose.foundation.shape.CircleShape)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape)
                 .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Placeholder Icon (Web Globe)
-            // In future: Load favicon from shortcut.iconUrl
             Icon(
-                imageVector = Icons.Default.Public,
+                imageVector = JusBrowseIcons.Public,
                 contentDescription = null,
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxSize()
             )
         }
         
         Spacer(modifier = Modifier.height(4.dp))
         
-        // Text Label with Text Shadow equivalent (using a darker color for now on desktop bg)
         Text(
             text = shortcut.title,
             style = MaterialTheme.typography.labelMedium.copy(
                 fontSize = 11.sp,
                 shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     blurRadius = 4f
                 )
             ),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis

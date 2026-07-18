@@ -9,9 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,8 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jusdots.jusbrowse.ui.theme.InsecureRed
 import com.jusdots.jusbrowse.ui.theme.InsecureRedContainer
-import com.jusdots.jusbrowse.ui.theme.PrivatePurple
-import com.jusdots.jusbrowse.ui.theme.PrivatePurpleContainer
 import com.jusdots.jusbrowse.ui.theme.SecureGreen
 import com.jusdots.jusbrowse.ui.theme.SecureGreenContainer
 import com.jusdots.jusbrowse.ui.theme.WarningAmber
@@ -58,10 +54,10 @@ fun SecurityLockIcon(
     }
 
     val icon = when {
-        isSecure    -> Icons.Filled.Lock
-        isInsecure  -> Icons.Filled.LockOpen
-        isAboutPage -> Icons.Outlined.Info
-        else        -> Icons.Outlined.Warning
+        isSecure    -> JusBrowseIcons.Lock
+        isInsecure  -> JusBrowseIcons.LockOpen
+        isAboutPage -> JusBrowseIcons.InfoOutlined
+        else        -> JusBrowseIcons.WarningOutlined
     }
     val tint = when {
         isSecure    -> SecureGreen
@@ -152,22 +148,22 @@ fun PrivateTabIndicator(
     Row(
         modifier = modifier
             .clip(CircleShape)
-            .background(PrivatePurpleContainer)
-            .border(1.dp, PrivatePurple.copy(alpha = 0.5f), CircleShape)
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f), CircleShape)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Filled.VisibilityOff,
+            imageVector = JusBrowseIcons.VisibilityOff,
             contentDescription = "Private tab",
-            tint = PrivatePurple,
+            tint = MaterialTheme.colorScheme.tertiary,
             modifier = Modifier.size(12.dp)
         )
         Text(
             text = "Private",
             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = PrivatePurple
+            color = MaterialTheme.colorScheme.tertiary
         )
     }
 }
@@ -191,7 +187,7 @@ fun MixedContentWarning(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Filled.Warning,
+            imageVector = JusBrowseIcons.Warning,
             contentDescription = "Mixed content warning",
             tint = WarningAmber,
             modifier = Modifier.size(12.dp)
@@ -215,11 +211,11 @@ fun PermissionChip(
     onClick: (() -> Unit)? = null
 ) {
     val icon = when (permission.uppercase()) {
-        "GEOLOCATION", "LOCATION" -> if (isGranted) Icons.Filled.LocationOn else Icons.Outlined.LocationOff
-        "CAMERA"                  -> if (isGranted) Icons.Filled.Videocam else Icons.Outlined.VideocamOff
-        "MICROPHONE", "MIC"       -> if (isGranted) Icons.Filled.Mic else Icons.Outlined.MicOff
-        "NOTIFICATIONS"           -> if (isGranted) Icons.Filled.Notifications else Icons.Outlined.NotificationsOff
-        else                      -> Icons.Outlined.Security
+        "GEOLOCATION", "LOCATION" -> if (isGranted) JusBrowseIcons.LocationOn else JusBrowseIcons.LocationOffOutlined
+        "CAMERA"                  -> if (isGranted) JusBrowseIcons.Videocam else JusBrowseIcons.VideocamOffOutlined
+        "MICROPHONE", "MIC"       -> if (isGranted) JusBrowseIcons.Mic else JusBrowseIcons.MicOffOutlined
+        "NOTIFICATIONS"           -> if (isGranted) JusBrowseIcons.Notifications else JusBrowseIcons.NotificationsOffOutlined
+        else                      -> JusBrowseIcons.SecurityOutlined
     }
     val backgroundColor = if (isGranted) SecureGreenContainer else MaterialTheme.colorScheme.surfaceVariant.copy(0.4f)
     val borderColor     = if (isGranted) SecureGreen.copy(0.4f) else MaterialTheme.colorScheme.outline.copy(0.2f)
@@ -258,9 +254,9 @@ fun DownloadWarningDialog(
 ) {
     val isSafeDownload = warningMessage.startsWith("Download") && !isBlocked
 
-    val iconVector = if (isBlocked) Icons.Filled.Block
-    else if (isSafeDownload) Icons.Filled.Download
-    else Icons.Filled.Warning
+    val iconVector = if (isBlocked) JusBrowseIcons.Block
+    else if (isSafeDownload) JusBrowseIcons.Download
+    else JusBrowseIcons.Warning
 
     val iconTint = when {
         isBlocked       -> InsecureRed
@@ -339,10 +335,10 @@ fun PermissionRequestDialog(
         else -> "access ${permissions.joinToString(", ")}"
     }
     val icon = when {
-        permissions.contains("GEOLOCATION")  -> Icons.Filled.LocationOn
-        permissions.contains("CAMERA")       -> Icons.Filled.Videocam
-        permissions.contains("MICROPHONE")   -> Icons.Filled.Mic
-        else                                 -> Icons.Filled.Security
+        permissions.contains("GEOLOCATION")  -> JusBrowseIcons.LocationOn
+        permissions.contains("CAMERA")       -> JusBrowseIcons.Videocam
+        permissions.contains("MICROPHONE")   -> JusBrowseIcons.Mic
+        else                                 -> JusBrowseIcons.Security
     }
 
     AlertDialog(

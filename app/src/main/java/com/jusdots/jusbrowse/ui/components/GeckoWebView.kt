@@ -12,13 +12,15 @@ import org.mozilla.geckoview.GeckoView
 @Composable
 fun GeckoWebView(
     session: GeckoSession,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onViewCreated: (GeckoView) -> Unit = {}
 ) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
             GeckoView(context).apply {
                 setSession(session)
+                onViewCreated(this)
             }
         },
         update = { view ->

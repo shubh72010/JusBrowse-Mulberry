@@ -1,33 +1,13 @@
 package com.jusdots.jusbrowse.security
 
-import android.webkit.MimeTypeMap
-import android.webkit.URLUtil
-
-/**
- * Layer 9: Download & File Safety
- * Validates downloads and blocks dangerous file types
- */
 object DownloadValidator {
 
-    /**
-     * Dangerous file extensions that should be blocked or warned about
-     */
     private val dangerousExtensions = setOf(
-        // Android (Allowed now, but still careful)
-        "dex",
-        // Executables
-        "exe", "msi", "bat", "cmd", "com", "scr", "pif",
-        // Scripts
+        "dex", "exe", "msi", "bat", "cmd", "com", "scr", "pif",
         "sh", "bash", "ps1", "vbs", "js", "jse", "wsf", "wsh",
-        // Archives that can contain executables
-        "jar", "war",
-        // Other
-        "dll", "sys", "drv", "bin"
+        "jar", "war", "dll", "sys", "drv", "bin"
     )
 
-    /**
-     * File extensions that require explicit confirmation
-     */
     private val warnExtensions = setOf(
         "zip", "rar", "7z", "tar", "gz",
         "iso", "img", "dmg",
@@ -43,9 +23,6 @@ object DownloadValidator {
         val mimeType: String?
     )
 
-    /**
-     * Validate a download request
-     */
     fun validateDownload(
         url: String,
         userAgent: String?,
@@ -53,11 +30,9 @@ object DownloadValidator {
         mimeType: String?,
         contentLength: Long
     ): DownloadValidationResult {
-        // Extract filename
-        val fileName = URLUtil.guessFileName(url, contentDisposition, mimeType)
+        val fileName = guessFileName(url, contentDisposition, mimeType)
         val extension = getFileExtension(fileName).lowercase()
-        
-        // Check if blocked extension
+
         if (extension in dangerousExtensions) {
             return DownloadValidationResult(
                 isAllowed = false,
@@ -68,7 +43,6 @@ object DownloadValidator {
             )
         }
 
-        // Check if manual warning extension
         if (extension in warnExtensions) {
             return DownloadValidationResult(
                 isAllowed = true,
@@ -79,19 +53,13 @@ object DownloadValidator {
             )
         }
 
-        // Validate MIME type consistency (STRICT CHECK)
-        val expectedMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+        val expectedMime = getMimeTypeFromExtension(extension)
         if (mimeType != null && expectedMime != null) {
-            // Strict equality check or specialized handling
-            // We allow exact match OR if the server sends generic octet-stream we might trust extension (with warning if needed)
-            // But if extension says image/png and mime says application/x-dosexec, that's a red flag.
-            
             val cleanMime = mimeType.lowercase().substringBefore(";")
             val cleanExpected = expectedMime.lowercase()
-            
-            // Allow if server sends generic binary type
+
             val isGenericServerMime = cleanMime == "application/octet-stream" || cleanMime == "application/x-download"
-            
+
             if (!isGenericServerMime && cleanMime != cleanExpected) {
                  return DownloadValidationResult(
                     isAllowed = true,
@@ -112,6 +80,89 @@ object DownloadValidator {
         )
     }
 
+    private fun sanitizeFileName(name: String): String {
+        var safe = name
+        safe = safe.replace("../", "").replace("..\\", "")
+        safe = safe.replace("/", "_").replace("\\", "_")
+        safe = safe.replace("\u0000", "")
+        safe = safe.trimStart('.', '/', '\\')
+        return safe.ifBlank { "download" }
+    }
+
+    private fun guessFileName(url: String, contentDisposition: String?, mimeType: String?): String {
+        if (contentDisposition != null) {
+            val filenameMatch = Regex("filename[^;=\\n]*=((['\"]).*?\\2|[^;\\n]*)").find(contentDisposition)
+            val filename = filenameMatch?.groupValues?.get(1)?.trim('"', '\'')
+            if (!filename.isNullOrBlank()) return sanitizeFileName(filename)
+        }
+
+        val path = url.substringBefore("?").substringAfterLast("/")
+        if (path.isNotBlank() && !path.contains(".")) {
+            val ext = when {
+                mimeType?.contains("pdf") == true -> ".pdf"
+                mimeType?.contains("zip") == true -> ".zip"
+                mimeType?.contains("png") == true -> ".png"
+                mimeType?.contains("jpg") == true || mimeType?.contains("jpeg") == true -> ".jpg"
+                mimeType?.contains("gif") == true -> ".gif"
+                mimeType?.contains("mp4") == true -> ".mp4"
+                mimeType?.contains("mp3") == true -> ".mp3"
+                mimeType?.contains("html") == true -> ".html"
+                else -> ""
+            }
+            return if (ext.isNotEmpty()) "$path$ext" else path
+        }
+
+        if (path.isNotBlank()) return sanitizeFileName(path)
+        return "download"
+    }
+
+    private fun getMimeTypeFromExtension(extension: String): String? {
+        return when (extension.lowercase()) {
+            "html", "htm" -> "text/html"
+            "css" -> "text/css"
+            "js" -> "application/javascript"
+            "json" -> "application/json"
+            "xml" -> "application/xml"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            "svg" -> "image/svg+xml"
+            "ico" -> "image/x-icon"
+            "bmp" -> "image/bmp"
+            "pdf" -> "application/pdf"
+            "zip" -> "application/zip"
+            "rar" -> "application/vnd.rar"
+            "7z" -> "application/x-7z-compressed"
+            "tar" -> "application/x-tar"
+            "gz" -> "application/gzip"
+            "mp4" -> "video/mp4"
+            "webm" -> "video/webm"
+            "avi" -> "video/x-msvideo"
+            "mp3" -> "audio/mpeg"
+            "wav" -> "audio/wav"
+            "ogg" -> "audio/ogg"
+            "doc" -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "xls" -> "application/vnd.ms-excel"
+            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "ppt" -> "application/vnd.ms-powerpoint"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "apk" -> "application/vnd.android.package-archive"
+            "dex" -> "application/octet-stream"
+            "exe" -> "application/x-msdownload"
+            "sh" -> "application/x-sh"
+            "jar" -> "application/java-archive"
+            "iso" -> "application/x-iso9660-image"
+            "dmg" -> "application/x-apple-diskimage"
+            "ttf" -> "font/ttf"
+            "otf" -> "font/otf"
+            "woff" -> "font/woff"
+            "woff2" -> "font/woff2"
+            else -> null
+        }
+    }
+
     private fun getFileExtension(fileName: String): String {
         val lastDot = fileName.lastIndexOf('.')
         return if (lastDot >= 0) fileName.substring(lastDot + 1) else ""
@@ -119,10 +170,10 @@ object DownloadValidator {
 
     private fun buildBlockedMessage(fileName: String, extension: String): String {
         return when (extension) {
-            "apk", "aab" -> "⚠️ Android app files (.apk) can be dangerous and may contain malware. This download has been blocked for your safety."
-            "exe", "msi", "bat", "cmd" -> "⚠️ Executable files (.${extension}) cannot run on Android and may indicate a malicious download attempt."
-            "jar", "dex" -> "⚠️ Code files (.${extension}) can be dangerous. This download has been blocked."
-            else -> "⚠️ File type .$extension has been blocked for security reasons."
+            "apk", "aab" -> "Blocked: Android app files (.apk) may contain malware."
+            "exe", "msi", "bat", "cmd" -> "Blocked: Executable files (.${extension}) cannot run on Android."
+            "jar", "dex" -> "Blocked: Code files (.${extension}) can be dangerous."
+            else -> "Blocked: File type .$extension blocked for security."
         }
     }
 
@@ -130,9 +181,9 @@ object DownloadValidator {
         val sizeStr = formatFileSize(contentLength)
         val extension = getFileExtension(fileName).lowercase()
         return if (extension == "apk" || extension == "aab") {
-            "⚠️ This file ($fileName) is an Android App.\n\nInstalling apps from unknown sources can be dangerous. Only download if you trust this site.\n\nSize: $sizeStr"
+            "This file ($fileName) is an Android App. Only download if you trust this site. Size: $sizeStr"
         } else {
-            "Download $fileName ($sizeStr)?\n\nMake sure you trust this file before opening it."
+            "Download $fileName ($sizeStr)? Make sure you trust this file."
         }
     }
 
@@ -146,12 +197,8 @@ object DownloadValidator {
         }
     }
 
-    /**
-     * Check if auto-open is allowed for this file type
-     */
     fun isAutoOpenAllowed(fileName: String): Boolean {
         val extension = getFileExtension(fileName).lowercase()
-        // Never auto-open dangerous or warned files
         return extension !in dangerousExtensions && extension !in warnExtensions
     }
 }

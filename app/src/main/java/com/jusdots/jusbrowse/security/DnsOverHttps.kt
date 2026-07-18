@@ -46,13 +46,16 @@ class DnsOverHttps(private val client: OkHttpClient) : Dns {
                     val results = mutableListOf<InetAddress>()
                     for (i in 0 until answer.length()) {
                         val obj = answer.getJSONObject(i)
-                        if (obj.optInt("type") == 1) { // Type A (IPv4)
-                            val ip = obj.getString("data")
-                            results.add(InetAddress.getByName(ip))
-                            if (obj.has("TTL")) {
-                                val ttl = obj.getInt("TTL")
-                                if (ttl < minTtl || minTtl == 60) minTtl = ttl // Use shortest TTL
-                            }
+                        val type = obj.optInt("type")
+                        if (type == 1 || type == 28) { // Type A (IPv4) or AAAA (IPv6)
+                            try {
+                                val ip = obj.getString("data")
+                                results.add(InetAddress.getByName(ip))
+                                if (obj.has("TTL")) {
+                                    val ttl = obj.getInt("TTL")
+                                    if (ttl < minTtl || minTtl == 60) minTtl = ttl
+                                }
+                            } catch (_: Exception) { /* skip malformed record */ }
                         }
                     }
                     if (results.isNotEmpty()) {

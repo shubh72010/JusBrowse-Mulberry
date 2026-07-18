@@ -1,7 +1,5 @@
 package com.jusdots.jusbrowse.security
 
-import android.net.Uri
-
 /**
  * Sanitizes POST request bodies by stripping known tracking/analytics fields.
  * Used by SurgicalBridge to cleanse intercepted POST payloads.
@@ -37,9 +35,8 @@ object PostBodySanitizer {
      * Returns true if the entire POST should be blocked (tracker endpoint).
      */
     fun shouldBlockPost(url: String): Boolean {
-        val host = try { Uri.parse(url).host ?: "" } catch (e: Exception) { "" }
-        val path = try { Uri.parse(url).path ?: "" } catch (e: Exception) { "" }
-        val hostPath = "$host$path"
+        val noScheme = url.substringAfter("://")
+        val hostPath = noScheme.substringBefore("?")
         return TRACKER_ENDPOINTS.any { hostPath.contains(it) }
     }
 

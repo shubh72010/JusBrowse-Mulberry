@@ -1,19 +1,39 @@
 package com.jusdots.jusbrowse.data.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "browser_preferences")
 
 class PreferencesRepository(private val context: Context) {
-    
+
+    private val encryptedPrefs: SharedPreferences by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "secure_api_keys",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
     private object PreferenceKeys {
         val SEARCH_ENGINE = stringPreferencesKey("search_engine")
         val HOME_PAGE = stringPreferencesKey("home_page")
@@ -22,19 +42,13 @@ class PreferencesRepository(private val context: Context) {
         val SAVED_TABS = stringPreferencesKey("saved_tabs")
         val SAVED_WINDOW_STATES = stringPreferencesKey("saved_window_states")
         val ACTIVE_TAB_INDEX = stringPreferencesKey("active_tab_index")
-        val AD_BLOCK_ENABLED = booleanPreferencesKey("ad_block_enabled")
-        val ADVANCED_ADBLOCK_ENABLED = booleanPreferencesKey("advanced_adblock_enabled")
         val HTTPS_ONLY = booleanPreferencesKey("https_only")
         val FLAG_SECURE_ENABLED = booleanPreferencesKey("flag_secure_enabled")
-        val DO_NOT_TRACK_ENABLED = booleanPreferencesKey("do_not_track_enabled")
         val COOKIE_BLOCKER_ENABLED = booleanPreferencesKey("cookie_blocker_enabled")
         val POPUP_BLOCKER_ENABLED = booleanPreferencesKey("popup_blocker_enabled")
         val SAVED_SHORTCUTS = stringPreferencesKey("saved_shortcuts")
         val SHOW_TAB_ICONS = booleanPreferencesKey("show_tab_icons")
         val THEME_PRESET = stringPreferencesKey("theme_preset")
-        val VIRUSTOTAL_API_KEY = stringPreferencesKey("virustotal_api_key")
-        val KOODOUS_API_KEY = stringPreferencesKey("koodous_api_key")
-        // New UI customization preferences
         val FOLLIAN_MODE = booleanPreferencesKey("follian_mode")
         val TOOLBAR_POSITION = stringPreferencesKey("toolbar_position")
         val COMPACT_MODE = booleanPreferencesKey("compact_mode")
@@ -44,27 +58,30 @@ class PreferencesRepository(private val context: Context) {
         val START_PAGE_BLUR_AMOUNT = stringPreferencesKey("start_page_blur_amount")
         val CUSTOM_DOH_URL = stringPreferencesKey("custom_doh_url")
         val CUSTOM_SEARCH_ENGINE_URL = stringPreferencesKey("custom_search_engine_url")
-        
-        // Engines
-        val DEFAULT_ENGINE_ENABLED = booleanPreferencesKey("default_engine_enabled")
-        val JUS_FAKE_ENGINE_ENABLED = booleanPreferencesKey("jus_fake_engine_enabled")
-        val BORING_ENGINE_ENABLED = booleanPreferencesKey("boring_engine_enabled")
         val MULTI_MEDIA_PLAYBACK_ENABLED = booleanPreferencesKey("multi_media_playback_enabled")
         val APP_FONT = stringPreferencesKey("app_font")
         val BACKGROUND_PRESET = stringPreferencesKey("background_preset")
         val SAVED_STICKERS = stringPreferencesKey("saved_stickers")
         val STICKERS_ENABLED = booleanPreferencesKey("stickers_enabled")
         val PROTECTION_WHITELIST = stringPreferencesKey("protection_whitelist")
-        val MAX_CACHE_SIZE_MB = androidx.datastore.preferences.core.intPreferencesKey("max_cache_size_mb")
-        val CACHE_POLICY_WIPE_ON_FULL = booleanPreferencesKey("cache_policy_wipe_on_full")
-        val CACHE_POLICY_LRU = booleanPreferencesKey("cache_policy_lru")
+        val MAX_CACHE_SIZE_MB = intPreferencesKey("max_cache_size_mb")
         val BOOMER_MODE_ENABLED = booleanPreferencesKey("boomer_mode_enabled")
-        
-        // Analytics
-        val ANALYTICS_ENABLED = booleanPreferencesKey("analytics_enabled")
-        val ANALYTICS_USER_ID = stringPreferencesKey("analytics_user_id")
-        val ANALYTICS_LAST_SYNC_DATE = stringPreferencesKey("analytics_last_sync_date")
-        val ANALYTICS_LAST_SYNC_SUCCESS = booleanPreferencesKey("analytics_last_sync_success")
+
+        val ALWAYS_SHOW_URL = booleanPreferencesKey("always_show_url")
+        val MULTI_VIEW_MODE = booleanPreferencesKey("multi_view_mode")
+        val REDUCED_ANIMATIONS = booleanPreferencesKey("reduced_animations")
+        val PILL_BOTTOM_MARGIN = intPreferencesKey("pill_bottom_margin")
+        val PILL_COLLAPSED_WIDTH = intPreferencesKey("pill_collapsed_width")
+        val GLOBAL_DESKTOP_MODE = booleanPreferencesKey("global_desktop_mode")
+        val NEW_TAB_POSITION = stringPreferencesKey("new_tab_position")
+        val TAB_CHIP_HEIGHT = stringPreferencesKey("tab_chip_height")
+        val ACTIVE_TAB_STYLE = stringPreferencesKey("active_tab_style")
+        val SCRIM_DARKNESS = stringPreferencesKey("scrim_darkness")
+        val SHOW_PROGRESS_BAR = booleanPreferencesKey("show_progress_bar")
+        val START_PAGE_BRANDING = stringPreferencesKey("start_page_branding")
+        val CUSTOM_THEME_COLOR = stringPreferencesKey("custom_theme_color")
+        val BROWSER_MODE = stringPreferencesKey("browser_mode")
+        val UI_VARIANT = stringPreferencesKey("ui_variant")
     }
 
     val searchEngine: Flow<String> = context.dataStore.data.map { preferences ->
@@ -97,33 +114,17 @@ class PreferencesRepository(private val context: Context) {
         preferences[PreferenceKeys.ACTIVE_TAB_INDEX]?.toIntOrNull() ?: 0
     }
 
-    val adBlockEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.AD_BLOCK_ENABLED] ?: true
-    }
+    val adBlockEnabled: Flow<Boolean> = context.dataStore.data.map { true }
 
-    val advancedAdBlockEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.ADVANCED_ADBLOCK_ENABLED] ?: false
-    }
-
-    val httpsOnly: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.HTTPS_ONLY] ?: true
-    }
+    val httpsOnly: Flow<Boolean> = context.dataStore.data.map { true }
 
     val flagSecureEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.FLAG_SECURE_ENABLED] ?: true
     }
 
-    val doNotTrackEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.DO_NOT_TRACK_ENABLED] ?: true
-    }
+    val cookieBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { true }
 
-    val cookieBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.COOKIE_BLOCKER_ENABLED] ?: true
-    }
-
-    val popupBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.POPUP_BLOCKER_ENABLED] ?: true
-    }
+    val popupBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { true }
 
     val showTabIcons: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.SHOW_TAB_ICONS] ?: false
@@ -133,13 +134,15 @@ class PreferencesRepository(private val context: Context) {
         preferences[PreferenceKeys.THEME_PRESET] ?: "SYSTEM"
     }
 
-    val virusTotalApiKey: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.VIRUSTOTAL_API_KEY] ?: ""
+    val customThemeColor: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.CUSTOM_THEME_COLOR] ?: ""
     }
 
-    val koodousApiKey: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.KOODOUS_API_KEY] ?: ""
-    }
+    private val _virusTotalApiKey = MutableStateFlow(encryptedPrefs.getString("virustotal_api_key", "") ?: "")
+    val virusTotalApiKey: Flow<String> = _virusTotalApiKey.asStateFlow()
+
+    private val _koodousApiKey = MutableStateFlow(encryptedPrefs.getString("koodous_api_key", "") ?: "")
+    val koodousApiKey: Flow<String> = _koodousApiKey.asStateFlow()
 
     val customDohUrl: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.CUSTOM_DOH_URL] ?: ""
@@ -181,33 +184,9 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    suspend fun setAdBlockEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.AD_BLOCK_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setAdvancedAdBlockEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.ADVANCED_ADBLOCK_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setHttpsOnly(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.HTTPS_ONLY] = enabled
-        }
-    }
-
     suspend fun setFlagSecureEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.FLAG_SECURE_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setDoNotTrackEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.DO_NOT_TRACK_ENABLED] = enabled
         }
     }
 
@@ -218,18 +197,6 @@ class PreferencesRepository(private val context: Context) {
     suspend fun saveShortcuts(shortcutsJson: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.SAVED_SHORTCUTS] = shortcutsJson
-        }
-    }
-
-    suspend fun setCookieBlockerEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.COOKIE_BLOCKER_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setPopupBlockerEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.POPUP_BLOCKER_ENABLED] = enabled
         }
     }
 
@@ -245,16 +212,20 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    suspend fun setVirusTotalApiKey(key: String) {
+    suspend fun setCustomThemeColor(colorHex: String) {
         context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.VIRUSTOTAL_API_KEY] = key
+            preferences[PreferenceKeys.CUSTOM_THEME_COLOR] = colorHex
         }
     }
 
-    suspend fun setKoodousApiKey(key: String) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.KOODOUS_API_KEY] = key
-        }
+    fun setVirusTotalApiKey(key: String) {
+        encryptedPrefs.edit().putString("virustotal_api_key", key).apply()
+        _virusTotalApiKey.value = key
+    }
+
+    fun setKoodousApiKey(key: String) {
+        encryptedPrefs.edit().putString("koodous_api_key", key).apply()
+        _koodousApiKey.value = key
     }
 
     suspend fun setCustomDohUrl(url: String) {
@@ -269,10 +240,21 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    // ============ NEW UI CUSTOMIZATION PREFERENCES ============
+    // ============ UI CUSTOMIZATION PREFERENCES ============
 
     val follianMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.FOLLIAN_MODE] ?: false
+    }
+
+    val follianModeCached: Boolean get() = _follianModeCached
+    private var _follianModeCached: Boolean = false
+
+    suspend fun initFollianModeCache() {
+        _follianModeCached = follianMode.first()
+    }
+
+    fun updateFollianModeCache(value: Boolean) {
+        _follianModeCached = value
     }
 
     val toolbarPosition: Flow<String> = context.dataStore.data.map { preferences ->
@@ -347,19 +329,6 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    // Engines
-    val defaultEngineEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.DEFAULT_ENGINE_ENABLED] ?: true
-    }
-
-    val jusFakeEngineEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.JUS_FAKE_ENGINE_ENABLED] ?: false
-    }
-
-    val boringEngineEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.BORING_ENGINE_ENABLED] ?: false
-    }
-
     val multiMediaPlaybackEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.MULTI_MEDIA_PLAYBACK_ENABLED] ?: false
     }
@@ -370,24 +339,6 @@ class PreferencesRepository(private val context: Context) {
 
     val backgroundPreset: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.BACKGROUND_PRESET] ?: "NONE"
-    }
-
-    suspend fun setDefaultEngineEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.DEFAULT_ENGINE_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setJusFakeEngineEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.JUS_FAKE_ENGINE_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setBoringEngineEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.BORING_ENGINE_ENABLED] = enabled
-        }
     }
 
     suspend fun setMultiMediaPlaybackEnabled(enabled: Boolean) {
@@ -448,28 +399,6 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    val cachePolicyWipeOnFull: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.CACHE_POLICY_WIPE_ON_FULL] ?: false
-    }
-
-    suspend fun setCachePolicyWipeOnFull(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.CACHE_POLICY_WIPE_ON_FULL] = enabled
-            if (enabled) preferences[PreferenceKeys.CACHE_POLICY_LRU] = false
-        }
-    }
-
-    val cachePolicyLRU: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.CACHE_POLICY_LRU] ?: true
-    }
-
-    suspend fun setCachePolicyLRU(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.CACHE_POLICY_LRU] = enabled
-            if (enabled) preferences[PreferenceKeys.CACHE_POLICY_WIPE_ON_FULL] = false
-        }
-    }
-
     val boomerModeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.BOOMER_MODE_ENABLED] ?: false
     }
@@ -480,43 +409,143 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    val analyticsEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.ANALYTICS_ENABLED] ?: true
+    val alwaysShowUrl: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ALWAYS_SHOW_URL] ?: true
     }
 
-    suspend fun setAnalyticsEnabled(enabled: Boolean) {
+    suspend fun setAlwaysShowUrl(enabled: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.ANALYTICS_ENABLED] = enabled
+            preferences[PreferenceKeys.ALWAYS_SHOW_URL] = enabled
         }
     }
 
-    val analyticsUserId: Flow<String?> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.ANALYTICS_USER_ID]
+    val multiViewMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.MULTI_VIEW_MODE] ?: false
     }
 
-    suspend fun setAnalyticsUserId(userId: String) {
+    suspend fun setMultiViewMode(enabled: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.ANALYTICS_USER_ID] = userId
+            preferences[PreferenceKeys.MULTI_VIEW_MODE] = enabled
         }
     }
 
-    val analyticsLastSyncDate: Flow<String?> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_DATE]
+    val reducedAnimations: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.REDUCED_ANIMATIONS] ?: false
     }
 
-    suspend fun setAnalyticsLastSyncDate(date: String) {
+    val pillBottomMargin: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.PILL_BOTTOM_MARGIN] ?: 90
+    }
+
+    val pillCollapsedWidth: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.PILL_COLLAPSED_WIDTH] ?: 260
+    }
+
+    suspend fun setReducedAnimations(enabled: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_DATE] = date
+            preferences[PreferenceKeys.REDUCED_ANIMATIONS] = enabled
         }
     }
 
-    val analyticsLastSyncSuccess: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_SUCCESS] ?: false
+    suspend fun setPillBottomMargin(margin: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.PILL_BOTTOM_MARGIN] = margin
+        }
     }
 
-    suspend fun setAnalyticsLastSyncSuccess(success: Boolean) {
+    suspend fun setPillCollapsedWidth(width: Int) {
         context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.ANALYTICS_LAST_SYNC_SUCCESS] = success
+            preferences[PreferenceKeys.PILL_COLLAPSED_WIDTH] = width
+        }
+    }
+
+    val globalDesktopMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.GLOBAL_DESKTOP_MODE] ?: false
+    }
+
+    val newTabPosition: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.NEW_TAB_POSITION] ?: "end"
+    }
+
+    suspend fun setGlobalDesktopMode(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.GLOBAL_DESKTOP_MODE] = enabled
+        }
+    }
+
+    suspend fun setNewTabPosition(position: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.NEW_TAB_POSITION] = position
+        }
+    }
+
+    val tabChipHeight: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.TAB_CHIP_HEIGHT] ?: "normal"
+    }
+
+    val activeTabStyle: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.ACTIVE_TAB_STYLE] ?: "gradient"
+    }
+
+    val scrimDarkness: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.SCRIM_DARKNESS] ?: "normal"
+    }
+
+    val showProgressBar: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.SHOW_PROGRESS_BAR] ?: true
+    }
+
+    val startPageBranding: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.START_PAGE_BRANDING] ?: "full"
+    }
+
+    val browserMode: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.BROWSER_MODE] ?: "strait"
+    }
+
+    suspend fun setTabChipHeight(height: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.TAB_CHIP_HEIGHT] = height
+        }
+    }
+
+    suspend fun setActiveTabStyle(style: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.ACTIVE_TAB_STYLE] = style
+        }
+    }
+
+    suspend fun setScrimDarkness(darkness: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.SCRIM_DARKNESS] = darkness
+        }
+    }
+
+    suspend fun setShowProgressBar(show: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.SHOW_PROGRESS_BAR] = show
+        }
+    }
+
+    suspend fun setStartPageBranding(branding: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.START_PAGE_BRANDING] = branding
+        }
+    }
+
+    suspend fun setBrowserMode(mode: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.BROWSER_MODE] = mode
+        }
+    }
+
+    val uiVariant: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.UI_VARIANT] ?: com.jusdots.jusbrowse.ui.theme.BrowserUiVariant.DEFAULT.name
+    }
+
+    suspend fun setUiVariant(variant: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.UI_VARIANT] = variant
         }
     }
 }

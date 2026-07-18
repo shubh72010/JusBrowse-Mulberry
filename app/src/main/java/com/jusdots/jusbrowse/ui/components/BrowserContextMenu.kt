@@ -3,9 +3,7 @@ package com.jusdots.jusbrowse.ui.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -62,9 +60,9 @@ fun BrowserContextMenu(
             ) {
                 // Determine icon based on type
                 val headerIcon = when (data.type) {
-                    ContextMenuType.IMAGE -> Icons.Outlined.Image
-                    ContextMenuType.IMAGE_LINK -> Icons.Outlined.Image
-                    else -> Icons.Outlined.Link
+                    ContextMenuType.IMAGE -> JusBrowseIcons.ImageOutlined
+                    ContextMenuType.IMAGE_LINK -> JusBrowseIcons.ImageOutlined
+                    else -> JusBrowseIcons.LinkOutlined
                 }
                 
                 Icon(
@@ -104,32 +102,32 @@ fun BrowserContextMenu(
             if (data.type == ContextMenuType.LINK || data.type == ContextMenuType.IMAGE_LINK) {
                 ContextMenuItem(
                     text = "Open in new tab",
-                    icon = Icons.Default.AddBox,
+                    icon = JusBrowseIcons.AddBox,
                     onClick = { onOpenInNewTab(targetUrl) }
                 )
                 ContextMenuItem(
                     text = "Open in background tab",
-                    icon = Icons.Default.TabUnselected,
+                    icon = JusBrowseIcons.TabUnselected,
                     onClick = { onOpenInBackgroundTab(targetUrl) }
                 )
                 ContextMenuItem(
                     text = "Open in incognito tab",
-                    icon = Icons.Default.VisibilityOff, // Incognito icon metaphor
+                    icon = JusBrowseIcons.VisibilityOff, // Incognito icon metaphor
                     onClick = { onOpenInIncognito(targetUrl) }
                 )
                 ContextMenuItem(
                     text = "Copy link address",
-                    icon = Icons.Default.ContentCopy,
+                    icon = JusBrowseIcons.ContentCopy,
                     onClick = { onCopyLink(targetUrl) }
                 )
                 ContextMenuItem(
                     text = "Share link",
-                    icon = Icons.Default.Share,
+                    icon = JusBrowseIcons.Share,
                     onClick = { onShareLink(targetUrl) }
                 )
                 ContextMenuItem(
                     text = "Pin to Desktop",
-                    icon = Icons.Default.PushPin,
+                    icon = JusBrowseIcons.PushPin,
                     onClick = { onPinToDesktop(data.title.ifEmpty { "Shortcut" }, targetUrl) }
                 )
             }
@@ -143,17 +141,17 @@ fun BrowserContextMenu(
                 
                 ContextMenuItem(
                     text = "Open image in new tab",
-                    icon = Icons.Outlined.Image,
+                    icon = JusBrowseIcons.ImageOutlined,
                     onClick = { onOpenInNewTab(imageUrl) }
                 )
                 ContextMenuItem(
                     text = "Download image",
-                    icon = Icons.Default.Download,
+                    icon = JusBrowseIcons.Download,
                     onClick = { onDownloadImage(imageUrl) }
                 )
                 ContextMenuItem(
                     text = "Share image", // Usually usually sharing the URL of the image
-                    icon = Icons.Default.Share,
+                    icon = JusBrowseIcons.Share,
                     onClick = { onShareImage(imageUrl) }
                 )
             }
@@ -162,7 +160,7 @@ fun BrowserContextMenu(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             ContextMenuItem(
                 text = "Ask JusBrowse Assistant...",
-                icon = Icons.Default.AutoAwesome,
+                icon = JusBrowseIcons.AutoAwesome,
                 textColor = MaterialTheme.colorScheme.primary,
                 iconColor = MaterialTheme.colorScheme.primary,
                 onClick = { /* TODO */ }

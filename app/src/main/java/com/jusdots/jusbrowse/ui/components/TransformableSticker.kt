@@ -18,10 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.CropSquare
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import coil.compose.AsyncImage
 import com.jusdots.jusbrowse.data.models.Sticker
 import kotlin.math.*
@@ -169,7 +166,7 @@ fun TransformableSticker(
                         },
                         modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(Icons.Default.CropSquare, null, modifier = Modifier.size(18.dp))
+                        Icon(JusBrowseIcons.CropSquare, null, modifier = Modifier.size(18.dp))
                     }
                     
                     FilledTonalIconButton(
@@ -180,7 +177,7 @@ fun TransformableSticker(
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )
                     ) {
-                        Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(18.dp))
+                        Icon(JusBrowseIcons.Delete, "Delete", modifier = Modifier.size(18.dp))
                     }
                 }
             }
