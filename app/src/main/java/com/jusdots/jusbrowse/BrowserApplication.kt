@@ -70,7 +70,6 @@ class BrowserApplication : Application() {
                 BrowserDatabase::class.java,
                 dbName
             ).addMigrations(BrowserDatabase.MIGRATION_7_8, BrowserDatabase.MIGRATION_8_9)
-                .fallbackToDestructiveMigration(true)
                 .build()
         }
     }
@@ -149,14 +148,10 @@ class BrowserApplication : Application() {
                     val delegate = BrowserMessageDelegate(this)
                     extension.setMessageDelegate(delegate, "jusbrowse")
                 }
-                // Re-register third-party extensions after built-in is ready
+                // Third-party extensions must not receive the built-in extension's
+                // privileged native-message namespace.
                 appScope.launch {
-                    extMan.reinstallPersistedExtensions { webext ->
-                        if (webext.metaData.name != "JusBrowse Privacy") {
-                            webext.setMessageDelegate(BrowserMessageDelegate(this@BrowserApplication), "jusbrowse")
-                            Log.d("BrowserApp", "Re-registered extension: ${webext.metaData.name}")
-                        }
-                    }
+                    extMan.reinstallPersistedExtensions()
                 }
             }, { exception ->
                 Log.e("BrowserApp", "Failed to register WebExtension", exception)

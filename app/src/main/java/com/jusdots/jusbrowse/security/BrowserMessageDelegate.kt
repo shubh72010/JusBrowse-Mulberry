@@ -64,7 +64,14 @@ class BrowserMessageDelegate(private val context: android.content.Context) : Web
                 Log.d("BrowserMessageDelegate", "Port Message Received: $type")
 
                 if (type == "webauthn_request") {
-                    handleWebAuthnRequest(port, json, portScope)
+                    // GeckoView's native WebAuthn flow owns origin, RP-ID, user-gesture
+                    // and user-verification checks. Never implement them in this bridge.
+                    port.postMessage(JSONObject().apply {
+                        put("type", "webauthn_result")
+                        put("requestId", json.optString("requestId"))
+                        put("error", "WebAuthn bridge disabled; use GeckoView native WebAuthn")
+                        put("errorType", "NotSupportedError")
+                    })
                 } else if (type == "media_extracted") {
                     val dataJson = json.optJSONObject("media")
                     if (dataJson != null) {

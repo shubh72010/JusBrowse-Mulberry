@@ -90,10 +90,7 @@ class MainActivity : ComponentActivity() {
         viewModel = androidx.lifecycle.ViewModelProvider(this)[BrowserViewModel::class.java]
         handleIntent(intent)
 
-        // Register this Activity for CredentialManager (passkey) operations.
-        // The WebExtension bridge (webauthn-bridge.js) intercepts navigator.credentials.*
-        // at the page level and routes through BrowserMessageDelegate → CredentialManagerHandler
-        // which uses this Activity reference to call CredentialManager.createCredential/getCredential.
+        // Register this Activity for GeckoView's native WebAuthn/passkey operations.
         BrowserApplication.setCurrentActivity(this)
 
         // Fallback: legacy GeckoRuntime.ActivityDelegate for WebAuthn requests that the

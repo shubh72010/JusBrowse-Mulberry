@@ -98,7 +98,8 @@ class StraitPermissionDelegate(
         permissions: Array<out String>?,
         callback: PermissionDelegate.Callback
     ) {
-        callback.grant()
+        // Android runtime permissions require an explicit, origin-bound UI flow.
+        callback.reject()
     }
 
     fun resolveContentPermission(granted: Boolean) {

@@ -55,6 +55,12 @@ class ExtensionManager(private val extensionDao: ExtensionDao) {
             val geckoResult = ctrl.install(url) ?: return@withContext Result.failure(Exception("install returned null"))
             val extension = awaitGeckoResult<WebExtension>(geckoResult)
             if (extension != null) {
+                if (expectedId != null && extension.id != expectedId) {
+                    controller?.uninstall(extension)?.let { awaitGeckoResult<Void>(it) }
+                    return@withContext Result.failure(
+                        SecurityException("Installed extension ID does not match expected ID")
+                    )
+                }
                 if (!skipDao) {
                     saveToDatabase(extension, url)
                 }

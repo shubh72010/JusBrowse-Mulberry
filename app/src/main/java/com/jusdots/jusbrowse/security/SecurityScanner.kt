@@ -13,6 +13,7 @@ import com.google.gson.JsonParser
  * Performs hash-based analysis using VirusTotal and Koodous APIs
  */
 object SecurityScanner {
+    private const val NETWORK_TIMEOUT_MS = 15_000
 
     data class ScanResult(
         val status: String, // Clean, Malicious, Error
@@ -61,6 +62,8 @@ object SecurityScanner {
         val url = URL("https://www.virustotal.com/api/v3/files/$hash")
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
+        connection.connectTimeout = NETWORK_TIMEOUT_MS
+        connection.readTimeout = NETWORK_TIMEOUT_MS
         connection.setRequestProperty("x-apikey", apiKey)
 
         return try {
@@ -79,7 +82,7 @@ object SecurityScanner {
                     ScanResult("Clean", "No threats detected by VirusTotal")
                 }
             } else if (connection.responseCode == 404) {
-                ScanResult("Clean", "File not seen before on VirusTotal (Unknown)")
+                ScanResult("Unknown", "File not seen before on VirusTotal")
             } else {
                 ScanResult("Error", "VirusTotal API Error: ${connection.responseCode}")
             }
@@ -95,6 +98,8 @@ object SecurityScanner {
         val url = URL("https://api.koodous.com/apks/$hash")
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
+        connection.connectTimeout = NETWORK_TIMEOUT_MS
+        connection.readTimeout = NETWORK_TIMEOUT_MS
         connection.setRequestProperty("Authorization", "Token $apiKey")
 
         return try {
@@ -111,7 +116,7 @@ object SecurityScanner {
                     ScanResult("Clean", "Koodous: No known issues with this APK")
                 }
             } else if (connection.responseCode == 404) {
-                ScanResult("Clean", "Koodous: APK not in database (Unknown)")
+                ScanResult("Unknown", "Koodous: APK not in database")
             } else {
                 ScanResult("Error", "Koodous API Error: ${connection.responseCode}")
             }
