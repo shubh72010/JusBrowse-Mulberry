@@ -10,8 +10,6 @@ app/release/
 
 # Gradle files
 .gradle/
-/gradle/wrapper/gradle-wrapper.jar
-gradle-wrapper.jar
 
 # Local configuration
 local.properties
