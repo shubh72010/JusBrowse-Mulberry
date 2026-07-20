@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
 jobs:
   lint:
     name: Lint
@@ -21,6 +24,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - run: $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" "build-tools;37.0.0" >/dev/null 2>&1 || true
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew lintDebug --no-daemon
 
@@ -34,6 +38,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - run: $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" "build-tools;37.0.0" >/dev/null 2>&1 || true
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew testDebugUnitTest --no-daemon
       - uses: actions/upload-artifact@v4
@@ -52,6 +57,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - run: $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "ndk;27.0.12077973" >/dev/null 2>&1 || true
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
@@ -69,6 +75,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - run: $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "ndk;27.0.12077973" >/dev/null 2>&1 || true
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleRelease --no-daemon
       - uses: actions/upload-artifact@v4
