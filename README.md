@@ -1,4 +1,4 @@
-# JusBrowse — The Stealth-First Privacy Browser for Android
+# JusBrowse — The peakest Browser for Android
 
 [![Status](https://img.shields.io/badge/Status-Alpha%206.3-orange.svg)]()
 [![Engine](https://img.shields.io/badge/Engine-GeckoView-blue.svg)]()
