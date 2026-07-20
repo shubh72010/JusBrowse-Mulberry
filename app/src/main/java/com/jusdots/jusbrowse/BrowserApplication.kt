@@ -1,16 +1,32 @@
 package com.jusdots.jusbrowse
 
+import android.app.Activity
 import android.app.Application
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
 import androidx.room.Room
 import com.jusdots.jusbrowse.data.database.BrowserDatabase
 import com.jusdots.jusbrowse.security.BrowserMessageDelegate
+import com.jusdots.jusbrowse.security.ExtensionManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.WebExtension
-import org.mozilla.geckoview.WebExtensionController
+import java.lang.ref.WeakReference
+
+data class PendingExtensionInstall(
+    val extensionName: String,
+    val extensionVersion: String,
+    val permissions: List<String>,
+    val origins: List<String>,
+    val result: GeckoResult<WebExtension.PermissionPromptResponse>
+)
 
 class BrowserApplication : Application() {
 
@@ -21,6 +37,24 @@ class BrowserApplication : Application() {
         @Volatile
         var runtime: GeckoRuntime? = null
             private set
+
+        val pendingExtensionInstall: MutableState<PendingExtensionInstall?> = mutableStateOf(null)
+
+        @Volatile
+        var extensionManager: ExtensionManager? = null
+
+        private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+        @Volatile
+        private var activityRef: WeakReference<Activity>? = null
+
+        fun setCurrentActivity(activity: Activity?) {
+            activityRef = if (activity != null) WeakReference(activity) else null
+        }
+
+        fun getCurrentActivity(): Activity? {
+            return activityRef?.get()
+        }
 
         fun getInstance(): BrowserApplication {
             return instance ?: throw IllegalStateException("Application not initialized")
@@ -35,8 +69,8 @@ class BrowserApplication : Application() {
                 context,
                 BrowserDatabase::class.java,
                 dbName
-            ).addMigrations(BrowserDatabase.MIGRATION_7_8)
-                .fallbackToDestructiveMigration()
+            ).addMigrations(BrowserDatabase.MIGRATION_7_8, BrowserDatabase.MIGRATION_8_9)
+                .fallbackToDestructiveMigration(true)
                 .build()
         }
     }
@@ -77,8 +111,10 @@ class BrowserApplication : Application() {
             runtime = GeckoRuntime.create(this, settings)
 
             val extController = runtime?.webExtensionController
+            val extMan = ExtensionManager(database.extensionDao())
+            extensionManager = extMan
 
-            // Auto-allow extension installation permissions
+            // Prompt user for extension install permissions
             extController?.setPromptDelegate(object :
                 org.mozilla.geckoview.WebExtensionController.PromptDelegate {
                 override fun onInstallPromptRequest(
@@ -87,8 +123,20 @@ class BrowserApplication : Application() {
                     origins: Array<String>,
                     installer: Array<String>
                 ): GeckoResult<WebExtension.PermissionPromptResponse>? {
-                    Log.d("BrowserApp", "Auto-allowing extension: ${extension.metaData?.name}")
-                    return GeckoResult.fromValue(WebExtension.PermissionPromptResponse(true, true, true))
+                    val meta = extension.metaData
+                    val name = meta.name ?: extension.id
+                    val version = meta.version
+                    Log.d("BrowserApp", "Install requested: $name v$version")
+
+                    val result = GeckoResult<WebExtension.PermissionPromptResponse>()
+                    pendingExtensionInstall.value = PendingExtensionInstall(
+                        extensionName = name,
+                        extensionVersion = version,
+                        permissions = permissions.toList(),
+                        origins = origins.toList(),
+                        result = result
+                    )
+                    return result
                 }
             })
 
@@ -97,12 +145,25 @@ class BrowserApplication : Application() {
                 "jusbrowse-privacy@jusdots.com"
             )?.accept({ extension ->
                 if (extension != null) {
-                    Log.d("BrowserApp", "WebExtension installed: ${extension.metaData?.name}")
+                    Log.d("BrowserApp", "WebExtension installed: ${extension.metaData.name}")
                     val delegate = BrowserMessageDelegate(this)
                     extension.setMessageDelegate(delegate, "jusbrowse")
                 }
+                // Re-register third-party extensions after built-in is ready
+                appScope.launch {
+                    extMan.reinstallPersistedExtensions { webext ->
+                        if (webext.metaData.name != "JusBrowse Privacy") {
+                            webext.setMessageDelegate(BrowserMessageDelegate(this@BrowserApplication), "jusbrowse")
+                            Log.d("BrowserApp", "Re-registered extension: ${webext.metaData.name}")
+                        }
+                    }
+                }
             }, { exception ->
                 Log.e("BrowserApp", "Failed to register WebExtension", exception)
+                // Still try to re-register even if built-in fails
+                appScope.launch {
+                    extMan.reinstallPersistedExtensions()
+                }
             })
         }
     }

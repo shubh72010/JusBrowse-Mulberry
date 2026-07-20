@@ -140,26 +140,36 @@ browser.webRequest.onBeforeRequest.addListener(
 
 // ═══ NATIVE SYNC ═══
 let appPort = null;
+const pendingWebAuthn = new Map();
+
+function handlePortMessage(message) {
+    if (message.type === "set_adblock") {
+        adBlockState = message.enabled;
+        browser.storage.local.set({ adBlockEnabled: adBlockState });
+    } else if (message.type === "extract_media") {
+        handleMediaExtraction();
+    } else if (message.type === "toggle_boomer") {
+        browser.tabs.query({}).then(tabs => {
+            tabs.forEach(tab => {
+                browser.tabs.sendMessage(tab.id, {
+                    type: "toggle_boomer",
+                    enabled: message.enabled
+                }).catch(() => {});
+            });
+        });
+    } else if (message.type === "webauthn_result") {
+        var resolver = pendingWebAuthn.get(message.requestId);
+        if (resolver) {
+            pendingWebAuthn.delete(message.requestId);
+            resolver({ result: message.result, error: message.error, errorType: message.errorType });
+        }
+    }
+}
+
 function connectToNative() {
     try {
         appPort = browser.runtime.connectNative("jusbrowse");
-        appPort.onMessage.addListener((message) => {
-            if (message.type === "set_adblock") {
-                adBlockState = message.enabled;
-                browser.storage.local.set({ adBlockEnabled: adBlockState });
-            } else if (message.type === "extract_media") {
-                handleMediaExtraction();
-            } else if (message.type === "toggle_boomer") {
-                browser.tabs.query({}).then(tabs => {
-                    tabs.forEach(tab => {
-                        browser.tabs.sendMessage(tab.id, {
-                            type: "toggle_boomer",
-                            enabled: message.enabled
-                        }).catch(() => {});
-                    });
-                });
-            }
-        });
+        appPort.onMessage.addListener(handlePortMessage);
         appPort.onDisconnect.addListener(() => {
             appPort = null;
             setTimeout(connectToNative, 2000);
@@ -171,6 +181,35 @@ function connectToNative() {
 connectToNative();
 
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Route WebAuthn requests from content script to native port
+    if (message.type === "webauthn_request") {
+        if (!appPort) {
+            sendResponse({ error: "Native bridge not connected", errorType: "NetworkError" });
+            return true;
+        }
+        var requestId = message.requestId;
+        pendingWebAuthn.set(requestId, sendResponse);
+
+        // Extract origin from the sender's URL for CredentialManager validation.
+        // The origin must match the RP ID (e.g. https://accounts.google.com).
+        var origin = "";
+        if (sender && sender.url) {
+            try {
+                var url = new URL(sender.url);
+                origin = url.origin;
+            } catch (e) {}
+        }
+
+        appPort.postMessage({
+            type: "webauthn_request",
+            subType: message.subType,
+            requestId: requestId,
+            clientDataHash: message.clientDataHash || "",
+            publicKey: message.publicKey
+        });
+        return true;
+    }
+
     if (message.type === "get_cosmetic_rules") {
         const host = message.host ? message.host.toLowerCase() : "";
         const selectors = new Set(COSMETIC_RULES.global);

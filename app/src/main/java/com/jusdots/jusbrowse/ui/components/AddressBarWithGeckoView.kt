@@ -390,7 +390,16 @@ fun AddressBarWithGeckoView(
                     val mimeType = response.headers["Content-Type"] ?: "application/octet-stream"
                     val contentDisposition = response.headers["Content-Disposition"] ?: ""
                     val contentLength = response.headers["Content-Length"]?.toLongOrNull() ?: 0L
-                    
+
+                    // Intercept XPI downloads — route to extension installer
+                    val isXpi = url.endsWith(".xpi", ignoreCase = true) ||
+                        mimeType == "application/x-xpinstall" ||
+                        contentDisposition.contains(".xpi", ignoreCase = true)
+                    if (isXpi) {
+                        viewModel.installExtensionFromUrl(url)
+                        return
+                    }
+
                     val validation = com.jusdots.jusbrowse.security.DownloadValidator.validateDownload(
                         url, null, contentDisposition, mimeType, contentLength
                     )
@@ -957,6 +966,7 @@ fun AddressBarWithGeckoView(
                                          }),
                                          Triple(JusBrowseIcons.History, "History", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.HISTORY); showPillMenu = false }),
                                          Triple(JusBrowseIcons.Download, "Downloads", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.DOWNLOADS); showPillMenu = false }),
+                                         Triple(JusBrowseIcons.Extension, "Extensions", { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.EXTENSIONS); showPillMenu = false }),
                                          Triple(JusBrowseIcons.VpnKey, "Private", { viewModel.createNewTab(isPrivate = true); showPillMenu = false }),
                                          Triple(JusBrowseIcons.Assignment, "Trackers", { showTrackerDetails = true; showPillMenu = false }),
                                          Triple(JusBrowseIcons.Layers, "Container", { showContainers = true }),

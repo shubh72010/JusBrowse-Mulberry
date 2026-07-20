@@ -1,6 +1,7 @@
 package com.jusdots.jusbrowse.security
 
 import android.util.Log
+import com.jusdots.jusbrowse.BrowserApplication
 import org.json.JSONObject
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.WebExtension
@@ -62,7 +63,9 @@ class BrowserMessageDelegate(private val context: android.content.Context) : Web
                 val type = json.optString("type")
                 Log.d("BrowserMessageDelegate", "Port Message Received: $type")
 
-                if (type == "media_extracted") {
+                if (type == "webauthn_request") {
+                    handleWebAuthnRequest(port, json, portScope)
+                } else if (type == "media_extracted") {
                     val dataJson = json.optJSONObject("media")
                     if (dataJson != null) {
                         try {
@@ -91,6 +94,63 @@ class BrowserMessageDelegate(private val context: android.content.Context) : Web
                 scope = null
             }
         })
+    }
+
+    private fun handleWebAuthnRequest(port: WebExtension.Port, json: JSONObject, scope: CoroutineScope) {
+        val subType = json.optString("subType")
+        val requestId = json.optString("requestId")
+        val clientDataHash = json.optString("clientDataHash", "")
+        val publicKeyJson = json.optJSONObject("publicKey")?.toString()
+        if (requestId.isEmpty() || publicKeyJson == null) {
+            Log.w("BrowserMessageDelegate", "WebAuthn: missing requestId or publicKey")
+            val err = JSONObject().apply {
+                put("type", "webauthn_result")
+                put("requestId", requestId)
+                put("error", "Missing request data")
+                put("errorType", "UnknownError")
+            }
+            port.postMessage(err)
+            return
+        }
+
+        Log.d("BrowserMessageDelegate", "WebAuthn $subType request")
+
+        scope.launch(Dispatchers.Main) {
+            val handler = NativeWebAuthnHandler(context)
+            val result = when (subType) {
+                "create" -> handler.handleCreate(publicKeyJson)
+                "get" -> handler.handleGet(publicKeyJson, clientDataHash)
+                else -> {
+                    val err = JSONObject().apply {
+                        put("type", "webauthn_result")
+                        put("requestId", requestId)
+                        put("error", "Unknown subType: $subType")
+                        put("errorType", "NotSupportedError")
+                    }
+                    port.postMessage(err)
+                    return@launch
+                }
+            }
+
+            val response = JSONObject().apply {
+                put("type", "webauthn_result")
+                put("requestId", requestId)
+                result.fold(
+                    onSuccess = { jsonStr ->
+                        try {
+                            put("result", JSONObject(jsonStr))
+                        } catch (e: Exception) {
+                            put("result", jsonStr)
+                        }
+                    },
+                    onFailure = { error ->
+                        put("error", error.message ?: "Unknown error")
+                        put("errorType", "UnknownError")
+                    }
+                )
+            }
+            port.postMessage(response)
+        }
     }
 
     override fun onMessage(nativeApp: String, message: Any, sender: WebExtension.MessageSender): GeckoResult<Any>? {

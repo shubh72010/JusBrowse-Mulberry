@@ -95,6 +95,7 @@ class StraitArchitecture(private val context: Context) {
         }
     }
 
+    @Suppress("DEPRECATION")
     suspend fun onTrimMemory(level: Int) {
         if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
             val activeTabIds = lifecycleManager.getActiveTabIds()

@@ -2850,4 +2850,44 @@ object JusBrowseIcons {
         }
 
     private var _Bookmark: ImageVector? = null
+
+    val Extension: ImageVector
+        get() {
+            if (_Extension != null) return _Extension!!
+            _Extension = ImageVector.Builder(
+                name = "Extension",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f
+            ).apply {
+                path(fill = SolidColor(Color.Black)) {
+                    moveTo(20.0f, 11.0f)
+                    lineTo(20.0f, 7.0f)
+                    curveTo(20.0f, 5.9f, 19.1f, 5.0f, 18.0f, 5.0f)
+                    lineTo(14.0f, 5.0f)
+                    curveTo(14.0f, 3.62f, 12.88f, 2.5f, 11.5f, 2.5f)
+                    curveTo(10.12f, 2.5f, 9.0f, 3.62f, 9.0f, 5.0f)
+                    lineTo(5.0f, 5.0f)
+                    curveTo(3.9f, 5.0f, 3.0f, 5.9f, 3.0f, 7.0f)
+                    lineTo(3.0f, 10.8f)
+                    curveTo(4.38f, 10.8f, 5.5f, 11.92f, 5.5f, 13.3f)
+                    curveTo(5.5f, 14.68f, 4.38f, 15.8f, 3.0f, 15.8f)
+                    lineTo(3.0f, 19.0f)
+                    curveTo(3.0f, 20.1f, 3.9f, 21.0f, 5.0f, 21.0f)
+                    lineTo(8.8f, 21.0f)
+                    curveTo(8.8f, 19.62f, 9.92f, 18.5f, 11.3f, 18.5f)
+                    curveTo(12.68f, 18.5f, 13.8f, 19.62f, 13.8f, 21.0f)
+                    lineTo(17.0f, 21.0f)
+                    curveTo(18.1f, 21.0f, 19.0f, 20.1f, 19.0f, 19.0f)
+                    lineTo(19.0f, 15.2f)
+                    curveTo(20.38f, 15.2f, 21.5f, 14.08f, 21.5f, 12.7f)
+                    curveTo(21.5f, 11.32f, 20.38f, 11.0f, 20.0f, 11.0f)
+                    close()
+                }
+            }.build()
+            return _Extension!!
+        }
+
+    private var _Extension: ImageVector? = null
 }

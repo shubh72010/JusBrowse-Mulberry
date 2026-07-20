@@ -5,5 +5,7 @@ enum class Screen {
     BOOKMARKS,
     HISTORY,
     SETTINGS,
-    DOWNLOADS
+    DOWNLOADS,
+    EXTENSIONS,
+    EXTENSION_DETAIL
 }

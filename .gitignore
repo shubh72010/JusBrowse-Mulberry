@@ -2,7 +2,6 @@
 *.apk
 *.aab
 *.ap_
-*.aab
 
 # Build outputs
 /build
@@ -10,21 +9,17 @@ app/build/
 app/release/
 
 # Gradle files
-.gradle
+.gradle/
 /gradle/wrapper/gradle-wrapper.jar
 gradle-wrapper.jar
-gradle/
 
 # Local configuration
 local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-/.idea/deploymentTargetSelector.xml
 /.idea/
+
+# Logs
+*.log
+*.tmp
 
 # Module files
 *.iml
@@ -50,7 +45,7 @@ secrets*
 credentials*
 
 # Room schema exports
-/schemas/
+schemas/
 
 # ProGuard
 /proguard/
@@ -63,7 +58,9 @@ lint/
 
 # Profiling
 *.hprof
-app/release/
 
 # Embedded git repos
 agent-skills/
+
+# Knowledge graph artifacts (codebase-memory-mcp)
+.codebase-memory/

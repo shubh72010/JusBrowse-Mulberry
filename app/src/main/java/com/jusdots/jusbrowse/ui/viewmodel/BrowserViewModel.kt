@@ -472,6 +472,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     var showScanResultDialog by mutableStateOf(false)
     var scanResultMessage by mutableStateOf("")
 
+    // Extension management
+    var selectedExtension by mutableStateOf<com.jusdots.jusbrowse.data.models.ExtensionEntity?>(null)
+
     private suspend fun downloadToTempFile(url: String, context: Context): java.io.File? = withContext(Dispatchers.IO) {
         try {
             val file = java.io.File(context.cacheDir, "temp_scan_" + java.util.UUID.randomUUID().toString())
@@ -1578,6 +1581,24 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 _activeTabState.value = _activeTabState.value?.copy(isDesktopMode = enabled)
             }
             applyDesktopModeToSession(desc.id)
+        }
+    }
+
+    fun installExtensionFromUrl(url: String) {
+        viewModelScope.launch {
+            val extMan = com.jusdots.jusbrowse.BrowserApplication.extensionManager
+            if (extMan != null) {
+                extMan.installExtension(url) { webExt ->
+                    Log.d("BrowserViewModel", "Extension installed: ${webExt.metaData?.name}")
+                }
+            }
+        }
+    }
+
+    fun setExtensionEnabled(extensionId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            val extMan = com.jusdots.jusbrowse.BrowserApplication.extensionManager
+            extMan?.setEnabled(extensionId, enabled)
         }
     }
 

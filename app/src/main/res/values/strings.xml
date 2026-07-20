@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">JusBrowse Strait</string>
+    <string name="app_name">JusBrowse Mulberry</string>
     <string name="safe_browsing_disabled_notice">Safe Browsing is disabled to prevent URLs from being sent to Google. JusBrowse does not warn against known phishing or malware sites.</string>
 </resources>

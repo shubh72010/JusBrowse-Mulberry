@@ -5,13 +5,11 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -32,30 +30,42 @@ import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val WEB_AUTHN_REQUEST_CODE = 0x4A75
+    }
+
     private lateinit var downloadReceiver: DownloadReceiver
     private lateinit var viewModel: BrowserViewModel
 
-    // Holds the pending GeckoResult for an in-flight WebAuthn/FIDO2 request.
+    // Fallback: holds the pending GeckoResult for an in-flight WebAuthn/FIDO2 request
+    // via the legacy GeckoRuntime.ActivityDelegate path. This is kept as a fallback
+    // for any calls that the WebExtension bridge doesn't intercept.
     private var pendingWebAuthnResult: GeckoResult<Intent>? = null
 
-    /**
-     * ActivityResult launcher for WebAuthn/FIDO2 passkey flows.
-     * GeckoView fires GeckoRuntime.ActivityDelegate.onStartActivityForResult() when a site calls
-     * navigator.credentials.create() or navigator.credentials.get(). We launch the system
-     * FIDO2 picker here and resolve the GeckoResult with the response.
-     */
-    private val webAuthnLauncher: ActivityResultLauncher<IntentSenderRequest> =
-        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            val geckoResult = pendingWebAuthnResult ?: return@registerForActivityResult
+    // Legacy FIDO2 onActivityResult — kept as fallback for any WebAuthn calls that
+    // bypass the WebExtension bridge (e.g. iframes without content script injection).
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == WEB_AUTHN_REQUEST_CODE) {
+            val geckoResult = pendingWebAuthnResult
             pendingWebAuthnResult = null
-            if (result.resultCode == RESULT_OK && result.data != null) {
-                geckoResult.complete(result.data)
+            if (geckoResult == null) {
+                Log.w(TAG, "WebAuthn result with no pending request (requestCode=$WEB_AUTHN_REQUEST_CODE)")
+                return
+            }
+            if (resultCode == RESULT_OK && data != null) {
+                Log.d(TAG, "WebAuthn result OK")
+                geckoResult.complete(data)
             } else {
+                Log.w(TAG, "WebAuthn result cancelled or no data: resultCode=$resultCode")
                 geckoResult.completeExceptionally(
                     IllegalStateException("WebAuthn/FIDO2 prompt was cancelled or returned no data")
                 )
             }
         }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,18 +90,30 @@ class MainActivity : ComponentActivity() {
         viewModel = androidx.lifecycle.ViewModelProvider(this)[BrowserViewModel::class.java]
         handleIntent(intent)
 
-        // Wire WebAuthn/FIDO2 passkey support.
-        // GeckoView requires an ActivityDelegate to bridge passkey requests from the web
-        // engine to Android's FIDO2 API. Without this, navigator.credentials.* silently fails.
+        // Register this Activity for CredentialManager (passkey) operations.
+        // The WebExtension bridge (webauthn-bridge.js) intercepts navigator.credentials.*
+        // at the page level and routes through BrowserMessageDelegate → CredentialManagerHandler
+        // which uses this Activity reference to call CredentialManager.createCredential/getCredential.
+        BrowserApplication.setCurrentActivity(this)
+
+        // Fallback: legacy GeckoRuntime.ActivityDelegate for WebAuthn requests that the
+        // WebExtension bridge doesn't intercept. This uses the deprecated FIDO2 API path.
+        // The WebExtension bridge is the primary path for passkey support.
         BrowserApplication.runtime?.activityDelegate = object : GeckoRuntime.ActivityDelegate {
-            override fun onStartActivityForResult(intent: PendingIntent): GeckoResult<Intent> {
+            override fun onStartActivityForResult(pendingIntent: PendingIntent): GeckoResult<Intent> {
                 val result = GeckoResult<Intent>()
                 pendingWebAuthnResult = result
                 try {
-                    webAuthnLauncher.launch(
-                        IntentSenderRequest.Builder(intent.intentSender).build()
+                    Log.d(TAG, "Launching WebAuthn PendingIntent: $pendingIntent")
+                    @Suppress("DEPRECATION")
+                    startIntentSenderForResult(
+                        pendingIntent.intentSender,
+                        WEB_AUTHN_REQUEST_CODE,
+                        null,
+                        0, 0, 0
                     )
                 } catch (e: Exception) {
+                    Log.e(TAG, "Failed to launch WebAuthn PendingIntent", e)
                     result.completeExceptionally(e)
                     pendingWebAuthnResult = null
                 }
@@ -152,6 +174,7 @@ class MainActivity : ComponentActivity() {
             downloadReceiver.cleanup()
             unregisterReceiver(downloadReceiver)
         }
+        BrowserApplication.setCurrentActivity(null)
         // Clear ActivityDelegate to prevent GeckoRuntime holding a reference to this Activity
         BrowserApplication.runtime?.activityDelegate = null
         pendingWebAuthnResult = null

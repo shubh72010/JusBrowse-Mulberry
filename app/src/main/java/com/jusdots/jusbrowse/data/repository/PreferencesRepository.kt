@@ -21,6 +21,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class PreferencesRepository(private val context: Context) {
 
+    @Suppress("DEPRECATION")
     private val encryptedPrefs: SharedPreferences by lazy {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)

@@ -39,7 +39,8 @@ import android.widget.VideoView
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.viewinterop.AndroidView
-import com.jusdots.jusbrowse.ui.theme.BrowserUiVariant
+
+import org.mozilla.geckoview.WebExtension
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,8 +54,6 @@ fun BrowserScreen(
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val isMultiView by viewModel.isMultiViewMode.collectAsStateWithLifecycle()
     val showTabIcons by viewModel.showTabIcons.collectAsStateWithLifecycle(initialValue = false)
-    val uiVariant by viewModel.uiVariant.collectAsStateWithLifecycle(initialValue = BrowserUiVariant.DEFAULT.name)
-    val isSafeVariant = uiVariant == BrowserUiVariant.SAFE.name
 
     val context = LocalContext.current
     
@@ -69,8 +68,11 @@ fun BrowserScreen(
     // Handle Back Press at high level
     androidx.activity.compose.BackHandler(enabled = true) {
         when (currentScreen) {
-            Screen.SETTINGS, Screen.HISTORY, Screen.BOOKMARKS, Screen.DOWNLOADS -> {
+            Screen.SETTINGS, Screen.HISTORY, Screen.BOOKMARKS, Screen.DOWNLOADS, Screen.EXTENSIONS -> {
                 viewModel.navigateToScreen(Screen.BROWSER)
+            }
+            Screen.EXTENSION_DETAIL -> {
+                viewModel.navigateToScreen(Screen.EXTENSIONS)
             }
             Screen.BROWSER -> {
                 // If in multi-view, maybe exit multi-view?
@@ -94,17 +96,6 @@ fun BrowserScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isSafeVariant && currentScreen == Screen.BROWSER && !isMultiView) {
-            SafeBrowserShell(
-                viewModel = viewModel,
-                activeTab = tabs.getOrNull(activeTabIndex),
-                tabs = tabs,
-                activeTabIndex = activeTabIndex,
-                modifier = modifier
-            )
-            return@Box
-        }
-
         val wallpaperUri by viewModel.startPageWallpaperUri.collectAsStateWithLifecycle(initialValue = null)
         val blurAmount by viewModel.startPageBlurAmount.collectAsStateWithLifecycle(initialValue = 0f)
         val backgroundPresetName by viewModel.backgroundPreset.collectAsStateWithLifecycle(initialValue = "NONE")
@@ -401,6 +392,71 @@ fun BrowserScreen(
                             onBack = { viewModel.navigateToScreen(Screen.BROWSER) }
                         )
                     }
+                    Screen.EXTENSIONS -> {
+                        val extMan = com.jusdots.jusbrowse.BrowserApplication.extensionManager
+                        if (extMan != null) {
+                            ExtensionsScreen(
+                                extensionManager = extMan,
+                                onBack = { viewModel.navigateToScreen(Screen.BROWSER) },
+                                onExtensionClick = { ext ->
+                                    viewModel.selectedExtension = ext
+                                    viewModel.navigateToScreen(Screen.EXTENSION_DETAIL)
+                                }
+                            )
+                        }
+                    }
+                    Screen.EXTENSION_DETAIL -> {
+                        val ext = viewModel.selectedExtension
+                        val extMan = com.jusdots.jusbrowse.BrowserApplication.extensionManager
+                        if (ext != null && extMan != null) {
+                            ExtensionDetailScreen(
+                                extension = ext,
+                                extensionManager = extMan,
+                                onBack = { viewModel.navigateToScreen(Screen.EXTENSIONS) },
+                                onUninstall = { viewModel.navigateToScreen(Screen.EXTENSIONS) },
+                                onToggleEnabled = { id, enabled -> viewModel.setExtensionEnabled(id, enabled) }
+                            )
+                        }
+                    }
+                }
+
+                // Extension Install Permission Dialog
+                val pendingInstall = com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value
+                if (pendingInstall != null) {
+                    var installHandled by remember { mutableStateOf(false) }
+                    fun completeInstall(allow: Boolean) {
+                        if (installHandled) return
+                        installHandled = true
+                        pendingInstall.result.complete(WebExtension.PermissionPromptResponse(allow, allow, allow))
+                        com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value = null
+                    }
+                    AlertDialog(
+                        onDismissRequest = { completeInstall(false) },
+                        title = { Text("Add Extension") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("${pendingInstall.extensionName} v${pendingInstall.extensionVersion} requests permission to:")
+                                if (pendingInstall.permissions.isNotEmpty()) {
+                                    Text("Permissions:", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                    pendingInstall.permissions.forEach { perm ->
+                                        Text("  • $perm", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                if (pendingInstall.origins.isNotEmpty()) {
+                                    Text("Access to:", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                    pendingInstall.origins.forEach { origin ->
+                                        Text("  • $origin", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { completeInstall(true) }) { Text("Add") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { completeInstall(false) }) { Text("Cancel") }
+                        }
+                    )
                 }
 
                 // Global Overlays
@@ -460,110 +516,4 @@ fun BrowserScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SafeBrowserShell(
-    viewModel: BrowserViewModel,
-    activeTab: com.jusdots.jusbrowse.data.models.BrowserTab?,
-    tabs: List<com.jusdots.jusbrowse.data.models.BrowserTab>,
-    activeTabIndex: Int,
-    modifier: Modifier = Modifier
-) {
-    val scope = rememberCoroutineScope()
-    var showTabSwitcher by remember { mutableStateOf(false) }
-    var showUrlDialog by remember { mutableStateOf<String?>(null) }
-    val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle(initialValue = "DuckDuckGo")
 
-    val navigateSafely: (String) -> Unit = { input ->
-        val target = if (viewModel.isUrlQuery(input)) {
-            viewModel.getSearchUrl(input, searchEngine)
-        } else if (!input.contains("://")) {
-            "https://$input"
-        } else input
-        val tab = activeTab
-        if (tab != null) {
-            viewModel.navigateToUrlForIndex(activeTabIndex, target)
-            scope.launch { viewModel.getOrCreateGeckoSession(tab.id, tab.isPrivate, tab.containerId).loadUri(target) }
-        } else {
-            viewModel.createNewTab(url = target)
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-    ) {
-        com.jusdots.jusbrowse.ui.components.safe.SafeTopBar(
-            currentUrl = activeTab?.url ?: "",
-            title = activeTab?.title ?: "",
-            canGoBack = activeTab?.canGoBack == true,
-            canGoForward = activeTab?.canGoForward == true,
-            tabCount = tabs.size,
-            isSecure = activeTab?.url?.startsWith("https://") == true,
-            onBack = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goBack() },
-            onForward = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goForward() },
-            onTabsClick = { showTabSwitcher = true },
-            onMenuAction = { action ->
-                when (action) {
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.NewTab -> { viewModel.createNewTab() }
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.NewPrivateTab -> { viewModel.createNewTab(isPrivate = true) }
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Bookmarks -> viewModel.navigateToScreen(Screen.BOOKMARKS)
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.History -> viewModel.navigateToScreen(Screen.HISTORY)
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Downloads -> viewModel.navigateToScreen(Screen.DOWNLOADS)
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Settings -> viewModel.navigateToScreen(Screen.SETTINGS)
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.Share -> { }
-                    com.jusdots.jusbrowse.ui.components.safe.SafeMenuAction.EditUrl -> { showUrlDialog = activeTab?.url ?: "" }
-                }
-            }
-        )
-
-        com.jusdots.jusbrowse.ui.components.safe.SafeBrowserContent(
-            viewModel = viewModel,
-            activeTab = activeTab,
-            shortcuts = viewModel.pinnedShortcuts,
-            onNavigate = { url -> navigateSafely(url) },
-            modifier = Modifier.weight(1f).fillMaxWidth()
-        )
-
-        com.jusdots.jusbrowse.ui.components.safe.SafeBottomBar(
-            canGoBack = activeTab?.canGoBack == true,
-            canGoForward = activeTab?.canGoForward == true,
-            tabCount = tabs.size,
-            onBack = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goBack() },
-            onForward = { viewModel.getGeckoSession(activeTab?.id ?: "")?.goForward() },
-            onHome = {
-                val tab = activeTab
-                if (tab != null) {
-                    viewModel.navigateToUrlForIndex(activeTabIndex, "about:blank")
-                    scope.launch { viewModel.getOrCreateGeckoSession(tab.id, tab.isPrivate, tab.containerId).loadUri("about:blank") }
-                }
-            },
-            onTabs = { showTabSwitcher = true },
-            onMenu = { viewModel.navigateToScreen(Screen.SETTINGS) }
-        )
-    }
-
-    if (showTabSwitcher) {
-        com.jusdots.jusbrowse.ui.components.safe.SafeTabSwitcher(
-            tabs = tabs,
-            activeTabIndex = activeTabIndex,
-            onTabSelected = { idx -> viewModel.switchTab(idx) },
-            onTabClosed = { idx -> viewModel.closeTab(idx) },
-            onNewTab = { viewModel.createNewTab() },
-            onDismiss = { showTabSwitcher = false }
-        )
-    }
-
-    if (showUrlDialog != null) {
-        com.jusdots.jusbrowse.ui.components.safe.SafeUrlEntryDialog(
-            initialUrl = showUrlDialog ?: "",
-            onDismiss = { showUrlDialog = null },
-            onNavigate = { url ->
-                navigateSafely(url)
-                showUrlDialog = null
-            }
-        )
-    }
-}

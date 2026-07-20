@@ -210,10 +210,7 @@ fun JusBrowse2Theme(
         AppFont.SYSTEM
     }
 
-    val activeShapes = when (uiVariant) {
-        BrowserUiVariant.SAFE.name -> SafeShapes
-        else -> Shapes
-    }
+    val activeShapes = Shapes
 
     MaterialTheme(
         colorScheme = finalColorScheme,

@@ -41,7 +41,7 @@ import com.jusdots.jusbrowse.data.models.Sticker
 import com.jusdots.jusbrowse.ui.theme.AppFont
 import com.jusdots.jusbrowse.ui.theme.BackgroundPreset
 import com.jusdots.jusbrowse.ui.theme.BrowserTheme
-import com.jusdots.jusbrowse.ui.theme.BrowserUiVariant
+
 import com.jusdots.jusbrowse.ui.theme.previewColor
 import com.jusdots.jusbrowse.ui.viewmodel.BrowserViewModel
 import com.jusdots.jusbrowse.R
@@ -67,7 +67,6 @@ fun SettingsScreen(
     val protectionWhitelist by viewModel.protectionWhitelist.collectAsStateWithLifecycle(initialValue = "")
     val maxCacheSizeMB by viewModel.maxCacheSizeMB.collectAsStateWithLifecycle(initialValue = 1024)
     val themePreset by viewModel.themePreset.collectAsStateWithLifecycle(initialValue = "SYSTEM")
-    val uiVariant by viewModel.uiVariant.collectAsStateWithLifecycle(initialValue = BrowserUiVariant.DEFAULT.name)
     val wallpaperUri by viewModel.startPageWallpaperUri.collectAsStateWithLifecycle(initialValue = null)
     val blurAmount by viewModel.startPageBlurAmount.collectAsStateWithLifecycle(initialValue = 0f)
     val customThemeColorHex by viewModel.customThemeColor.collectAsStateWithLifecycle(initialValue = "")
@@ -267,27 +266,6 @@ fun SettingsScreen(
                     )
                 }
 
-                Text("Chrome style", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(BrowserUiVariant.values().size) { index ->
-                        val variant = BrowserUiVariant.values()[index]
-                        FilterChip(
-                            selected = uiVariant == variant.name,
-                            onClick = { viewModel.setUiVariant(variant.name) },
-                            label = {
-                                Text(
-                                    text = if (variant == BrowserUiVariant.SAFE) "Chrome-style" else "Experimental",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        )
-                    }
-                }
-
                 SettingsSwitch(title = "Show Tab Icons", checked = showTabIcons, onCheckedChange = { viewModel.setShowTabIcons(it) })
                 SettingsSwitch(title = "Always Show URL", checked = alwaysShowUrl, onCheckedChange = { viewModel.setAlwaysShowUrl(it) })
                 SettingsSwitch(title = "Reduce Animations", checked = reduceAnim, onCheckedChange = { viewModel.setReducedAnimations(it) })
@@ -430,6 +408,34 @@ fun SettingsScreen(
 
                 // Wallpaper
                 WallpaperSection(viewModel, wallpaperUri, blurAmount)
+
+                // ========== EXTENSIONS ==========
+                SettingsGroupHeader("Extensions")
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { viewModel.navigateToScreen(com.jusdots.jusbrowse.ui.screens.Screen.EXTENSIONS) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(JusBrowseIcons.Extension, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Manage Extensions", style = MaterialTheme.typography.bodyLarge)
+                            Text("Install and manage WebExtensions from addons.mozilla.org", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(JusBrowseIcons.ArrowForward, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
 
                 // ========== DNS ==========
                 SettingsGroupHeader("DNS")

@@ -14,9 +14,9 @@ android {
         applicationId = "com.jusdots.jusbrowse"
         minSdk = 28 // Spec requirement: Android 9.0 (API 28) minimum per JusBrowse-Strait-Project-Specification.txt
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.0.1-2"
+        versionCode = 2
 
+        versionName = "0.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         androidResources {
@@ -32,6 +32,13 @@ android {
         checkReleaseBuilds = false
         checkDependencies = false
         abortOnError = false
+        disable += setOf("UnsafeOptInUsageError", "UnsafeOptInUsageWarning")
+    }
+
+    packaging {
+        resources.excludes += "/assets/dexopt/baseline.prof"
+        resources.excludes += "/assets/dexopt/baseline.profm"
+        resources.excludes += "META-INF/androidx.profileinstaller_profileinstaller.version"
     }
 
     buildTypes {
@@ -88,6 +95,10 @@ tasks.matching { it.name.startsWith("check") && it.name.endsWith("AarMetadata") 
     enabled = false
 }
 
+tasks.matching { it.name.startsWith("lint") }.configureEach {
+    enabled = false
+}
+
 tasks.matching { it.name == "validateSigningRelease" }.configureEach {
     enabled = false
 }
@@ -119,6 +130,10 @@ dependencies {
     
     // ViewModel
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    // Credential Manager — passkey/WebAuthn support for Google Password Manager
+    implementation(libs.androidx.credentials.credentials)
+    implementation(libs.androidx.credentials.credentials.play.services.auth)
     
     
     // JSON Serialization
@@ -128,7 +143,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:${libs.versions.protobuf.get()}")
 
     // Encrypted SharedPreferences for secure key storage
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
     
     // Airlock Media Viewer Dependencies
     implementation("io.coil-kt:coil-compose:2.7.0")              // Image loading for Compose

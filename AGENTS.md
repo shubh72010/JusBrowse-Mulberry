@@ -1,73 +1,104 @@
 # AGENTS.md
 
-## Project Identity
+## Project
 
-**JusBrowse Strait** — single-module (`:app`) Android browser using **GeckoView Nightly** (not WebView), Kotlin 2.4.10, Jetpack Compose + Material 3, AGP 9.3.0. MinSdk 28, compileSdk 37. Locale-filtered to `en` only. ABI splits: only `arm64-v8a` + `armeabi-v7a` (no x86 — won't run on emulator without adding ABI).
+**JusBrowse Strait** — single-module (`:app`) Android browser using **GeckoView Nightly** (not WebView), Kotlin 2.4.10, Jetpack Compose + Material 3, AGP 9.3.0. Gradle 9.6.1. MinSdk 28, compileSdk/targetSdk 37. App ID: `com.jusdots.jusbrowse`.
 
-Repo: `shubh72010/JusBrowse-Mulberry` (remote: `mulberry`).
+Remotes: `mulberry` (shubh72010/JusBrowse-Mulberry, upstream), `geckoview` (shubh72010/JusBrowse-GeckoView, fork source).
 
-## Build & Test
+## Build
 
 ```bash
-./gradlew assembleDebug          # Debug build (no R8)
-./gradlew assembleRelease        # Release build (R8 fullMode, shrinking, obfuscation)
-./gradlew test                   # Unit tests (38 tests, all passing)
-./gradlew clean                  # Clean build artifacts
+./gradlew assembleDebug          # debug (no R8)
+./gradlew assembleRelease        # release (R8 fullMode, minify, obfuscation, shrink resources)
+./gradlew testDebugUnitTest      # unit tests (JUnit 4)
+./gradlew clean
 ```
 
-**Memory**: Dev machine is 13GB RAM + 8GB swap. Gradle daemon at `-Xmx3g`, Kotlin daemon at `-Xmx2g`. If daemon is OOM-killed, run with `--no-daemon` or restart manually.
+CI (`.github/workflows/build.yml`): `lintDebug` → `testDebugUnitTest` → `assembleDebug` → `assembleRelease`, all `--no-daemon`. Java 17 (Temurin).
 
-**First sync is slow**: GeckoView Nightly ~150MB is fetched from `https://maven.mozilla.org/maven2/`. Ensure NDK is installed (GeckoView native components).
+**Lint is disabled** (`app/build.gradle.kts:98`) — the CI `lintDebug` step is a no-op.
 
-**Flatpak fix**: Android Studio runs inside Flatpak. A wrapper `~/.local/bin/jb-python3.12` bridges host Python into the sandbox for Gradle's `mach` subprocesses. If the venv gets recreated by `mach`, re-symlink: `ln -sf ~/.local/bin/jb-python3.12 /path/to/venv/bin/python3.12`
+**Signing**: Release signs with debug keystore (`signingConfigs.getByName("debug")`). Android Studio injected signing paths (Windows default) are overridden in `settings.gradle.kts:8-14` to `~/.android/debug.keystore`.
 
-**Generated code**: Protobuf (from `app/src/main/proto/jusbrowse/snapshot.proto`), Room DAOs via KSP (schema exports at `app/schemas/`), Compose compiler via `kotlin-compose` plugin (no separate compiler dep, Kotlin 2.4.0+).
+**Memory** (13GB RAM + 8GB swap): `org.gradle.jvmargs=-Xmx3g`, `kotlin.daemon.jvm.options=-Xmx2g`. If OOM-killed, run with `--no-daemon`.
 
-**Tests**: 38 unit tests across 4 test suites — all passing:
-- `CacheDeduplicatorTest` (8 tests) — ref count, eviction, dedup, stale invalidation
-- `DownloadValidatorTest` (10 tests) — MIME checks, extension blocking, APK/JS warnings
-- `PostBodySanitizerTest` (6 tests) — tracker endpoint blocking, analytics stripping
-- `PrecomputedAnimationTest` (12 tests) — overshoot, spring, bounce, lerp, smoothstop
+**First sync**: Downloads GeckoView Nightly ~150MB from `https://maven.mozilla.org/maven2/`. NDK required.
 
-**Release build quirks**:
-- AAR metadata check disabled: `tasks.matching { it.name.startsWith("check") && it.name.endsWith("AarMetadata") }.configureEach { enabled = false }` (GeckoView nightly SDK 37.1 not locally available; compileSdk=37).
-- Lint disabled for release: `lint.checkReleaseBuilds = false`, `lint.abortOnError = false`.
-- `validateSigningRelease` disabled — release uses debug keystore for now.
-- Android Studio injects `externalOverride` signing config pointing to Windows path via `-Pandroid.injected.signing.*` properties. Fixed in `settings.gradle.kts` by overriding these properties before AGP reads them (maps to `~/.android/debug.keystore`).
-- ABI split to `arm64-v8a` + `armeabi-v7a` only (no `universal`).
-- R8 full mode: `android.enableR8.fullMode=true`.
+## Release quirks
 
-## Architecture Highlights
+- AAR metadata check disabled — GeckoView nightly demands SDK 37.1+, not installed (`app/build.gradle.kts:94`)
+- `validateSigningRelease` disabled
+- ABI split: `arm64-v8a` + `armeabi-v7a` only, `isUniversalApk = true`
+- R8 fullMode strips `android.util.Log`, `Throwable.printStackTrace()`, and Kotlin null checks (`proguard-rules.pro`)
+- Resources exclude GeckoView baseline profiles and `androidx.profileinstaller` metadata
+- Only `en` locale resources included
 
-- **Strait** = storage-first architecture: disk is source of truth, RAM is temporary workspace
-- **Security layers**: `NetworkSurgeon`, `GhostCookieJar`, `ContentBlocker` (EasyPrivacy), `DnsOverHttps` (Cloudflare), `SurgicalBridge` (randomized native↔JS bridge names), `BrowserMessageDelegate` (WebExtension bridge)
-- **Persona isolation**: each persona = unique GeckoView `contextId` — separate cookies/storage per identity
-- **Tab lifecycle state machine**: Active → Suspended → Serialized → Evicted (managed by `TabLifecycleManager`, enforced by `MemoryBudgetController` — hard cap: 1 active tab RAM, 2 suspended, 150MB GeckoView budget)
-- **Ghost Cookie Jar**: cookies kept in memory only for sensitive personas (never persisted)
+## Generated code
 
-### Key entrypoints
+- Protobuf: `app/src/main/proto/jusbrowse/snapshot.proto` → Java under `build/generated/`
+- Room DAOs: KSP, schema exports at `app/schemas/` (not tracked in git)
+- Compose compiler: `kotlin-compose` plugin (Kotlin 2.4.0+), no separate dep
+- KSP `2.3.10` must stay compatible with Kotlin version
 
-| File | Role |
-|---|---|
-| `BrowserApplication.kt` | Initializes `GeckoRuntime` + loads built-in WebExtension |
-| `StraitArchitecture.kt` | Core Strait orchestrator |
-| `MainActivity.kt` | Compose entrypoint, WebAuthn, download receiver |
-| `BrowserViewModel.kt` | ~1700 lines — main state coordinator for UI |
+## Tests
 
-### Documentation reference
+4 test files in `app/src/test/` (JUnit 4, no MockK wired yet):
+- `storage/CacheDeduplicatorTest` — ref count, eviction, dedup
+- `security/DownloadValidatorTest` — MIME checks, extension blocking, APK/JS warnings
+- `security/PostBodySanitizerTest` — tracker endpoint blocking, analytics stripping
+- `ui/runtime/PrecomputedAnimationTest` — overshoot, spring, bounce, lerp
 
-Existing docs: `DOCUMENTATION.md` (technical deep-dive), `JusBrowse-Strait-Project-Specification.txt` (the single source of truth spec), `INSTALLATION.md`, `FAQ.md`. If docs conflict with config or scripts, trust the executable source.
+MockK (`1.13.16`) declared in version catalog but **not in `build.gradle.kts` deps**. No `androidTest` sources exist.
 
-## Skill-Driven Execution (OpenCode)
+## Architecture
 
-This repo bundles 23 project-local skills under `.opencode/skills/` and references the `agent-skills/` plugin. When a task matches, load the skill — never implement directly.
+Package: `com.jusdots.jusbrowse`
 
-- Feature → `spec-driven-development` → `incremental-implementation` → `test-driven-development`
-- Bug → `debugging-and-error-recovery`
-- Code review → `code-review-and-quality`
-- Refactoring → `code-simplification`
-- UI work → `frontend-ui-engineering`
-- Planning → `planning-and-task-breakdown`
-- API/interface → `api-and-interface-design`
+```
+data/         — models/, database/ (Room DB v9 with MIGRATION_7_8, MIGRATION_8_9), repository/
+lifecycle/    — MemoryBudgetController, TabLifecycleManager
+security/     — NetworkSurgeon, GhostCookieJar, ContentBlocker, DnsOverHttps, SurgicalBridge, BrowserMessageDelegate, PostBodySanitizer, DownloadValidator, ExtensionManager, GeckoSessionFactory, CredentialManagerHandler, etc. (23 files)
+storage/      — CacheDeduplicator, StorageWritePolicyEngine, TabSnapshotStorage
+ui/           — components/ (21 files), screens/ (7), runtime/ (9 — animations, caching, frozen state), delegate/, theme/, viewmodel/BrowserViewModel.kt (~1700 lines)
+utils/        — AirlockVaultManager, MediaExtractor
+```
 
-**Anti-rationalization**: "too small for a skill", "I'll gather context first" — ignore these. Check skills first.
+**Strait** = storage-first: disk is source of truth, RAM is temporary workspace.
+**Persona isolation**: each persona = unique GeckoView `contextId` — separate cookies/storage.
+**Tab lifecycle**: Active → Suspended → Serialized → Evicted (hard cap: 1 active + 2 suspended, 150MB GeckoView).
+**Ghost Cookie Jar**: memory-only cookies for sensitive personas (never persisted).
+**NetworkSurgeon**: OkHttp with system CA validation — no certificate pinning (previous fake pins caused SSL failures).
+
+Key entrypoints:
+- `BrowserApplication.kt` — `GeckoRuntime` init, WebExtension loading, Room DB singleton
+- `StraitArchitecture.kt` — core orchestrator (lifecycle, storage, budget)
+- `MainActivity.kt` — Compose entry, WebAuthn, download receiver
+- `BrowserViewModel.kt` — ~1700 lines, main UI state coordinator
+
+Manifest: `allowBackup=false`, `usesCleartextTraffic=false`, `networkSecurityConfig` enforced. `launchMode="singleTask"`.
+
+## GeckoView specifics
+
+- Uses Nightly channel (`org.mozilla.geckoview:geckoview-nightly`)
+- Runtime configured with: STRICT ETP, ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS cookies, HTTPS-only, Cloudflare DoH (TRR_MODE_FIRST), fingerprinting protection, LNA (letterboxing) enabled
+- Built-in WebExtension at `resource://android/assets/extensions/jusbrowse-privacy/`
+- WebExtension ↔ native bridge via `BrowserMessageDelegate` ("jusbrowse" namespace)
+- `GeckoSessionSettings` use `contextId` for persona isolation
+- Some Nightly-only API methods used: `setLnaEnabled`, `setLnaBlocking`, `setFingerprintingProtection`, `setCookieBehaviorOptInPartitioning`
+
+## Dev environment (Flatpak)
+
+Android Studio runs inside Flatpak. A wrapper `~/.local/bin/jb-python3.12` bridges host Python for Gradle's `mach` subprocesses. If the venv gets recreated by `mach`:
+
+```bash
+ln -sf ~/.local/bin/jb-python3.12 /path/to/venv/bin/python3.12
+```
+
+`GRADLE_MACH_PYTHON` and `PYTHON3=python3.12` are set via `mozconfig`.
+
+## OpenCode skills
+
+23 project-local skills at `.opencode/skills/` + the `agent-skills/` plugin (gitignored). Skill loading guidance lives in `~/.config/opencode/AGENTS.md` — start there for MCP routing and skill selection policy. The two key environment constraints (Flatpak Python bridge, Gradle OOM settings) logged there; update via `manage_adr` via codebase-memory-mcp if changed.
+
+Docs: `DOCUMENTATION.md`, `JusBrowse-Strait-Project-Specification.txt`, `ALPHA6_UPGRADE.md`, `INSTALLATION.md`.

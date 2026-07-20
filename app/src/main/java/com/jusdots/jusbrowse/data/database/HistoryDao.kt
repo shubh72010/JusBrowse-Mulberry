@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RewriteQueriesToDropUnusedColumns
 import com.jusdots.jusbrowse.data.models.HistoryItem
 import kotlinx.coroutines.flow.Flow
 
@@ -28,6 +29,7 @@ interface HistoryDao {
     @Query("DELETE FROM history")
     suspend fun deleteAllHistory()
 
+    @RewriteQueriesToDropUnusedColumns
     @Query("SELECT *, MAX(visitedAt) AS last_visited FROM history GROUP BY url ORDER BY last_visited DESC LIMIT :limit")
     fun getRecentHistory(limit: Int): Flow<List<HistoryItem>>
 

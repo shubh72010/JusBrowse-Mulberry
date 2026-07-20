@@ -13,6 +13,55 @@
     if (window.__jusbrowse_ran) return;
     window.__jusbrowse_ran = true;
 
+    // ═══ WEB AUTHN BRIDGE (Passkey/Credential Manager) ═══
+    // Inject webauthn-bridge.js into the page realm to override
+    // navigator.credentials.create/get before any page script runs.
+    // The bridge captures WebAuthn requests, sends them to this
+    // content script via window.postMessage, which forwards through
+    // the extension → native port chain to Android's CredentialManager.
+    (function injectWebAuthnBridge() {
+        try {
+            var script = document.createElement('script');
+            script.src = browser.runtime.getURL('webauthn-bridge.js');
+            script.onload = function () { script.remove(); };
+            (document.head || document.documentElement).appendChild(script);
+        } catch (e) {
+            console.error('[JusBrowse] Failed to inject webauthn-bridge:', e);
+        }
+    })();
+
+    // Listen for WebAuthn requests from the injected page script
+    // and forward them to the background script.
+    window.addEventListener('message', function (event) {
+        if (event.source !== window) return;
+        if (!event.data || event.data.type !== 'webauthn_request') return;
+
+        var msg = {
+            type: 'webauthn_request',
+            subType: event.data.subType,
+            requestId: event.data.requestId,
+            publicKey: event.data.publicKey,
+            clientDataHash: event.data.clientDataHash || ""
+        };
+
+        browser.runtime.sendMessage(msg).then(function (response) {
+            window.postMessage({
+                type: 'webauthn_result',
+                requestId: event.data.requestId,
+                result: response.result,
+                error: response.error,
+                errorType: response.errorType
+            }, '*');
+        }).catch(function (err) {
+            window.postMessage({
+                type: 'webauthn_result',
+                requestId: event.data.requestId,
+                error: err.message || 'Internal error',
+                errorType: 'UnknownError'
+            }, '*');
+        });
+    });
+
     // ── Global Session Seed ──
     const globalSeed = (function () {
         const buf = new Uint32Array(2);
