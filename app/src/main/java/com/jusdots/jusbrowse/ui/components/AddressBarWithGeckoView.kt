@@ -87,6 +87,7 @@ fun AddressBarWithGeckoView(
     showProgressBar: Boolean = true,
     startPageBranding: String = "full",
     scrimDarkness: String = "normal",
+    pillBlurOpacity: Float = 0.7f,
     modifier: Modifier = Modifier,
     stickerContent: @Composable () -> Unit = {}
 ) {
@@ -854,14 +855,19 @@ fun AddressBarWithGeckoView(
                     } else Modifier
                 )
         ) {
-            // Glass Fill Layers (Preserved)
+            // Glass fill — tinted surface + highlight gradient
+            val glassSurfaceAlpha = when {
+                showPillMenu -> (pillBlurOpacity + 0.26f).coerceAtMost(1f)
+                isPillHovered -> (pillBlurOpacity - 0.20f).coerceAtLeast(0.1f)
+                else -> pillBlurOpacity
+            }
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .background(
-                        if (showPillMenu) MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
-                        else if (isPillHovered) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+                        if (showPillMenu) MaterialTheme.colorScheme.surface.copy(alpha = (pillBlurOpacity + 0.26f).coerceAtMost(1f))
+                        else if (isPillHovered) MaterialTheme.colorScheme.primaryContainer.copy(alpha = (pillBlurOpacity - 0.20f).coerceAtLeast(0.1f))
+                        else MaterialTheme.colorScheme.surface.copy(alpha = pillBlurOpacity)
                     )
             )
             Box(
@@ -870,9 +876,9 @@ fun AddressBarWithGeckoView(
                     .background(
                         Brush.verticalGradient(
                             colors = if (isWhitelisted) {
-                                listOf(SecureGreen.copy(alpha = if (isPillHovered) 0.15f else 0.10f), SecureGreen.copy(alpha = 0.04f))
+                                listOf(SecureGreen.copy(alpha = if (isPillHovered) 0.20f else 0.12f), SecureGreen.copy(alpha = 0.06f))
                             } else {
-                                listOf(MaterialTheme.colorScheme.primary.copy(alpha = if (isPillHovered) 0.12f else 0.07f), MaterialTheme.colorScheme.secondary.copy(alpha = 0.03f))
+                                listOf(MaterialTheme.colorScheme.primary.copy(alpha = if (isPillHovered) 0.14f else 0.09f), MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f))
                             }
                         )
                     )

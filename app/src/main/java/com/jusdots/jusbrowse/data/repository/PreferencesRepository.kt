@@ -83,6 +83,8 @@ class PreferencesRepository(private val context: Context) {
         val CUSTOM_THEME_COLOR = stringPreferencesKey("custom_theme_color")
         val BROWSER_MODE = stringPreferencesKey("browser_mode")
         val UI_VARIANT = stringPreferencesKey("ui_variant")
+        val AD_BLOCK_ENABLED = booleanPreferencesKey("ad_block_enabled")
+        val PILL_BLUR_OPACITY = stringPreferencesKey("pill_blur_opacity")
     }
 
     val searchEngine: Flow<String> = context.dataStore.data.map { preferences ->
@@ -115,17 +117,25 @@ class PreferencesRepository(private val context: Context) {
         preferences[PreferenceKeys.ACTIVE_TAB_INDEX]?.toIntOrNull() ?: 0
     }
 
-    val adBlockEnabled: Flow<Boolean> = context.dataStore.data.map { true }
+    val adBlockEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.AD_BLOCK_ENABLED] ?: true
+    }
 
-    val httpsOnly: Flow<Boolean> = context.dataStore.data.map { true }
+    val httpsOnly: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.HTTPS_ONLY] ?: true
+    }
 
     val flagSecureEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.FLAG_SECURE_ENABLED] ?: true
     }
 
-    val cookieBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { true }
+    val cookieBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.COOKIE_BLOCKER_ENABLED] ?: true
+    }
 
-    val popupBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { true }
+    val popupBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.POPUP_BLOCKER_ENABLED] ?: true
+    }
 
     val showTabIcons: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.SHOW_TAB_ICONS] ?: false
@@ -400,6 +410,30 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
+    suspend fun setAdBlockEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.AD_BLOCK_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setHttpsOnly(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.HTTPS_ONLY] = enabled
+        }
+    }
+
+    suspend fun setCookieBlockerEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.COOKIE_BLOCKER_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setPopupBlockerEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.POPUP_BLOCKER_ENABLED] = enabled
+        }
+    }
+
     val boomerModeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.BOOMER_MODE_ENABLED] ?: false
     }
@@ -513,6 +547,16 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setActiveTabStyle(style: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.ACTIVE_TAB_STYLE] = style
+        }
+    }
+
+    val pillBlurOpacity: Flow<Float> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.PILL_BLUR_OPACITY]?.toFloatOrNull() ?: 0.7f
+    }
+
+    suspend fun setPillBlurOpacity(opacity: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.PILL_BLUR_OPACITY] = opacity.toString()
         }
     }
 

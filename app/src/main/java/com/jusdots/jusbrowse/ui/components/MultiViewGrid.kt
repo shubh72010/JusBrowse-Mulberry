@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -87,6 +88,14 @@ private fun GridCell(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val alwaysShowUrl by viewModel.alwaysShowUrl.collectAsStateWithLifecycle(initialValue = true)
+    val reduceAnim by viewModel.reducedAnimations.collectAsStateWithLifecycle(initialValue = false)
+    val showProgressBar by viewModel.showProgressBar.collectAsStateWithLifecycle(initialValue = true)
+    val pillBottomMargin by viewModel.pillBottomMargin.collectAsStateWithLifecycle(initialValue = 90)
+    val pillCollapsedWidth by viewModel.pillCollapsedWidth.collectAsStateWithLifecycle(initialValue = 260)
+    val startPageBranding by viewModel.startPageBranding.collectAsStateWithLifecycle(initialValue = "full")
+    val scrimDarkness by viewModel.scrimDarkness.collectAsStateWithLifecycle(initialValue = "normal")
+
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -108,6 +117,13 @@ private fun GridCell(
             onOpenAirlockGallery = {
                 // TODO: Implement media extraction via WebExtension messaging for GeckoView
             },
+            alwaysShowUrl = alwaysShowUrl,
+            reduceAnim = reduceAnim,
+            showProgressBar = showProgressBar,
+            pillBottomMarginDp = pillBottomMargin,
+            pillCollapsedWidthDp = pillCollapsedWidth,
+            startPageBranding = startPageBranding,
+            scrimDarkness = scrimDarkness,
             modifier = Modifier.fillMaxSize()
         )
     }

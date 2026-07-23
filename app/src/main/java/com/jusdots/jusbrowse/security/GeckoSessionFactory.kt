@@ -8,12 +8,14 @@ object GeckoSessionFactory {
 
     fun createSession(
         isPrivate: Boolean = false,
-        containerId: String? = null
+        containerId: String? = null,
+        javascriptEnabled: Boolean = true
     ): GeckoSession {
         val settings = GeckoSessionSettings.Builder()
             .usePrivateMode(isPrivate)
             .useTrackingProtection(true)
             .contextId(containerId)
+            .allowJavascript(javascriptEnabled)
             .build()
 
         val session = GeckoSession(settings)

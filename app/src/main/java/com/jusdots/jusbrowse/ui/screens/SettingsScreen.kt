@@ -43,9 +43,12 @@ import com.jusdots.jusbrowse.ui.theme.BackgroundPreset
 import com.jusdots.jusbrowse.ui.theme.BrowserTheme
 
 import com.jusdots.jusbrowse.ui.theme.previewColor
+import com.jusdots.jusbrowse.BuildConfig
 import com.jusdots.jusbrowse.ui.viewmodel.BrowserViewModel
 import com.jusdots.jusbrowse.R
 import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,11 +86,17 @@ fun SettingsScreen(
     val scrimDarkness by viewModel.scrimDarkness.collectAsStateWithLifecycle(initialValue = "normal")
     val showProgressBar by viewModel.showProgressBar.collectAsStateWithLifecycle(initialValue = true)
     val startPageBranding by viewModel.startPageBranding.collectAsStateWithLifecycle(initialValue = "full")
+    val adBlockEnabled by viewModel.adBlockEnabled.collectAsStateWithLifecycle(initialValue = true)
+    val pillBlurOpacity by viewModel.pillBlurOpacity.collectAsStateWithLifecycle(initialValue = 0.7f)
+    val httpsOnly by viewModel.httpsOnly.collectAsStateWithLifecycle(initialValue = true)
+    val cookieBlockerEnabled by viewModel.cookieBlockerEnabled.collectAsStateWithLifecycle(initialValue = true)
+    val popupBlockerEnabled by viewModel.popupBlockerEnabled.collectAsStateWithLifecycle(initialValue = true)
 
     var editingSticker by remember { mutableStateOf<Sticker?>(null) }
     var stickerLinkText by remember { mutableStateOf("") }
     var showDnsPresets by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+    val context = LocalContext.current
     var dnsUrlLocal by remember(customDohUrl) { mutableStateOf(customDohUrl) }
 
     if (showDnsPresets) {
@@ -363,6 +372,14 @@ fun SettingsScreen(
                 SettingsSwitch(title = "Progress Bar", checked = showProgressBar, onCheckedChange = { viewModel.setShowProgressBar(it) })
                 SettingsSelector(title = "Start Page Branding", selected = startPageBranding, options = listOf("full" to "Full", "logo_only" to "Logo only", "clean" to "Clean"), onSelect = { viewModel.setStartPageBranding(it) })
 
+                // Pill opacity
+                Text("Pill Opacity", style = MaterialTheme.typography.bodyLarge)
+                Slider(
+                    value = pillBlurOpacity, onValueChange = { viewModel.setPillBlurOpacity(it) },
+                    valueRange = 0.1f..1.0f,
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                )
+
                 // Font
                 Text("Font", style = MaterialTheme.typography.bodyLarge)
                 LazyRow(
@@ -451,6 +468,10 @@ fun SettingsScreen(
                 // ========== PRIVACY ==========
                 SettingsGroupHeader("Privacy")
                 SettingsSwitch(title = "Screenshot Protection", checked = flagSecureEnabled, onCheckedChange = { viewModel.setFlagSecureEnabled(it) })
+                SettingsSwitch(title = "Ad Block", checked = adBlockEnabled, onCheckedChange = { viewModel.setAdBlockEnabled(it) })
+                SettingsSwitch(title = "HTTPS-Only Mode", checked = httpsOnly, onCheckedChange = { viewModel.setHttpsOnly(it) })
+                SettingsSwitch(title = "Cookie Blocker", checked = cookieBlockerEnabled, onCheckedChange = { viewModel.setCookieBlockerEnabled(it) })
+                SettingsSwitch(title = "Popup Blocker", checked = popupBlockerEnabled, onCheckedChange = { viewModel.setPopupBlockerEnabled(it) })
 
                 var whitelistText by remember(protectionWhitelist) { mutableStateOf(protectionWhitelist) }
                 OutlinedTextField(
@@ -495,6 +516,7 @@ fun SettingsScreen(
                     onStickerLinkChange = { stickerLinkText = it })
 
                 // ========== ABOUT ==========
+                val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
@@ -512,7 +534,24 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Made with ❤️ by JusDots", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("v0.0.1-2", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
+                        Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (updateInfo != null && updateInfo!!.isNewer) {
+                            TextButton(onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.downloadUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            }) {
+                                Text("Update available: v${updateInfo!!.latestVersion}", color = MaterialTheme.colorScheme.primary)
+                            }
+                        } else if (updateInfo != null) {
+                            Text("Up to date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
+                        } else {
+                            Text("Check for updates", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f), modifier = Modifier.clickable {
+                                viewModel.forceCheckForUpdates()
+                            })
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(32.dp))

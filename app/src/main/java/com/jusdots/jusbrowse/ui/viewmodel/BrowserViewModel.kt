@@ -50,6 +50,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import com.jusdots.jusbrowse.BuildConfig
+import com.jusdots.jusbrowse.utils.UpdateChecker
+import com.jusdots.jusbrowse.utils.UpdateInfo
 
 data class TabWindowState(
     var x: Float = 0f,
@@ -239,6 +242,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         val showProgressBar: Boolean = true,
         val startPageBranding: String = "full",
         val scrimDarkness: String = "normal",
+        val pillBlurOpacity: Float = 0.7f,
         val browserMode: String = "strait"
     )
 
@@ -254,19 +258,21 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         val customSearchEngineUrl: String = ""
     )
 
-    val browserUiPrefs: StateFlow<BrowserUiPrefs> = combine(
-        combine(
-            preferencesRepository.showTabIcons,
-            preferencesRepository.compactMode,
-            preferencesRepository.alwaysShowUrl,
-            preferencesRepository.reducedAnimations,
-            preferencesRepository.showProgressBar
-        ) { a, b, c, d, e ->
-            BrowserUiPrefs(
-                showTabIcons = a, compactMode = b, alwaysShowUrl = c,
-                reduceAnim = d, showProgressBar = e
-            )
-        },
+    private val _baseUiPrefs: StateFlow<BrowserUiPrefs> = combine(
+        preferencesRepository.showTabIcons,
+        preferencesRepository.compactMode,
+        preferencesRepository.alwaysShowUrl,
+        preferencesRepository.reducedAnimations,
+        preferencesRepository.showProgressBar
+    ) { a, b, c, d, e ->
+        BrowserUiPrefs(
+            showTabIcons = a, compactMode = b, alwaysShowUrl = c,
+            reduceAnim = d, showProgressBar = e
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserUiPrefs())
+
+    private val _brandingPrefs: StateFlow<BrowserUiPrefs> = combine(
+        _baseUiPrefs,
         preferencesRepository.startPageBranding,
         preferencesRepository.scrimDarkness,
         preferencesRepository.browserMode
@@ -276,6 +282,13 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             scrimDarkness = scrimDarkness,
             browserMode = browserMode
         )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserUiPrefs())
+
+    val browserUiPrefs: StateFlow<BrowserUiPrefs> = combine(
+        _brandingPrefs,
+        preferencesRepository.pillBlurOpacity
+    ) { prefs, pillBlurOpacity ->
+        prefs.copy(pillBlurOpacity = pillBlurOpacity)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserUiPrefs())
 
     val browserLayoutPrefs: StateFlow<BrowserLayoutPrefs> = combine(
@@ -371,6 +384,30 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             preferencesRepository.globalDesktopMode.collect { _cachedDesktopMode = it }
         }
         viewModelScope.launch {
+            preferencesRepository.javascriptEnabled.collect { enabled ->
+                geckoSessionPool.values.forEach { session ->
+                    session.settings.allowJavascript = enabled
+                }
+            }
+        }
+        viewModelScope.launch {
+            // popupBlockerEnabled is handled via PromptDelegate.onPopupPrompt
+            // at the per-session level, not via session.settings
+            preferencesRepository.popupBlockerEnabled.collect { /* no-op: handled at PromptDelegate level */ }
+        }
+        viewModelScope.launch {
+            preferencesRepository.httpsOnly.collect { enabled ->
+                val runtime = com.jusdots.jusbrowse.BrowserApplication.runtime
+                if (runtime != null) {
+                    runtime.settings.allowInsecureConnections = if (enabled) {
+                        org.mozilla.geckoview.GeckoRuntimeSettings.HTTPS_ONLY
+                    } else {
+                        org.mozilla.geckoview.GeckoRuntimeSettings.ALLOW_ALL
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
             preferencesRepository.newTabPosition.collect { _cachedNewTabPosition = it }
         }
 
@@ -383,6 +420,16 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
         // Initial memory check
         viewModelScope.launch { reapSessionsIfNeeded() }
+
+        // Background update check — run once on init, non-blocking
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val info = UpdateChecker.check(BuildConfig.VERSION_NAME)
+                if (info != null && info.isNewer) {
+                    _updateInfo.value = info
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     private fun normalizeUrlForMapping(url: String): String {
@@ -452,8 +499,24 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     // Screen Navigation
     private val _currentScreen = MutableStateFlow(Screen.BROWSER)
+
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
+    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+
+    fun dismissUpdateDialog() {
+        _updateInfo.value = null
+    }
+
+    fun forceCheckForUpdates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val info = UpdateChecker.check(BuildConfig.VERSION_NAME)
+                _updateInfo.value = info
+            } catch (_: Exception) { }
+        }
+    }
     // Intent Handling
     private var isSessionLoaded = false
     private var pendingIntentUrl: String? = null
@@ -708,7 +771,8 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         // Preemptively reap BEFORE creating a new one to prevent concurrent process OOM
         reapSessionsIfNeeded(preemptive = 1)
 
-        val newSession = com.jusdots.jusbrowse.security.GeckoSessionFactory.createSession(isPrivate, containerId)
+        val jsEnabled = preferencesRepository.javascriptEnabled.first()
+        val newSession = com.jusdots.jusbrowse.security.GeckoSessionFactory.createSession(isPrivate, containerId, jsEnabled)
         registerGeckoSession(tabId, newSession)
         return newSession
     }
@@ -1093,7 +1157,24 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
             }
+
+            viewModelScope.launch {
+                applySiteSettingsToSession(descriptor.id, normalizedUrl)
+            }
         }
+    }
+
+    private suspend fun applySiteSettingsToSession(tabId: String, url: String) {
+        if (url == "about:blank" || !url.startsWith("http")) return
+        val origin = try {
+            val uri = android.net.Uri.parse(url)
+            "${uri.scheme}://${uri.host}"
+        } catch (_: Exception) { return }
+
+        val settings = siteSettingsRepository.getSettingsForOrigin(origin).first() ?: return
+        val session = geckoSessionPool[tabId] ?: return
+
+        session.settings.allowJavascript = settings.javascriptEnabled
     }
     
     fun navigateToUrlByTabId(tabId: String, url: String) {
@@ -1362,8 +1443,35 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setJavascriptEnabled(enabled: Boolean) {
+        geckoSessionPool.values.forEach { session ->
+            session.settings.allowJavascript = enabled
+        }
         viewModelScope.launch {
             preferencesRepository.setJavascriptEnabled(enabled)
+        }
+    }
+
+    fun setHttpsOnly(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setHttpsOnly(enabled)
+        }
+    }
+
+    fun setCookieBlockerEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setCookieBlockerEnabled(enabled)
+        }
+    }
+
+    fun setPopupBlockerEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setPopupBlockerEnabled(enabled)
+        }
+    }
+
+    fun setAdBlockEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAdBlockEnabled(enabled)
         }
     }
 
@@ -1516,6 +1624,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val scrimDarkness = preferencesRepository.scrimDarkness
     val showProgressBar = preferencesRepository.showProgressBar
     val startPageBranding = preferencesRepository.startPageBranding
+    val pillBlurOpacity = preferencesRepository.pillBlurOpacity
 
     fun setAlwaysShowUrl(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setAlwaysShowUrl(enabled) }
@@ -1559,6 +1668,10 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun setShowProgressBar(show: Boolean) {
         viewModelScope.launch { preferencesRepository.setShowProgressBar(show) }
+    }
+
+    fun setPillBlurOpacity(opacity: Float) {
+        viewModelScope.launch { preferencesRepository.setPillBlurOpacity(opacity) }
     }
 
     fun setStartPageBranding(branding: String) {

@@ -37,10 +37,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import android.net.Uri
 import android.widget.VideoView
 import androidx.compose.ui.layout.ContentScale
+import com.jusdots.jusbrowse.BuildConfig
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.viewinterop.AndroidView
 
 import org.mozilla.geckoview.WebExtension
+import android.content.Intent
+import com.jusdots.jusbrowse.utils.UpdateInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +57,16 @@ fun BrowserScreen(
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val isMultiView by viewModel.isMultiViewMode.collectAsStateWithLifecycle()
     val showTabIcons by viewModel.showTabIcons.collectAsStateWithLifecycle(initialValue = false)
+    val alwaysShowUrl by viewModel.alwaysShowUrl.collectAsStateWithLifecycle(initialValue = true)
+    val reduceAnim by viewModel.reducedAnimations.collectAsStateWithLifecycle(initialValue = false)
+    val showProgressBar by viewModel.showProgressBar.collectAsStateWithLifecycle(initialValue = true)
+    val pillBottomMargin by viewModel.pillBottomMargin.collectAsStateWithLifecycle(initialValue = 90)
+    val pillCollapsedWidth by viewModel.pillCollapsedWidth.collectAsStateWithLifecycle(initialValue = 260)
+    val startPageBranding by viewModel.startPageBranding.collectAsStateWithLifecycle(initialValue = "full")
+    val scrimDarkness by viewModel.scrimDarkness.collectAsStateWithLifecycle(initialValue = "normal")
+    val pillBlurOpacity by viewModel.pillBlurOpacity.collectAsStateWithLifecycle(initialValue = 0.7f)
+    val tabChipHeight by viewModel.tabChipHeight.collectAsStateWithLifecycle(initialValue = "normal")
+    val activeTabStyle by viewModel.activeTabStyle.collectAsStateWithLifecycle(initialValue = "gradient")
 
     val context = LocalContext.current
     
@@ -235,6 +248,14 @@ fun BrowserScreen(
                                         viewModel = viewModel,
                                         tab = tabs.getOrNull(activeTabIndex),
                                         onOpenAirlockGallery = { openAirlockGallery() },
+                                        alwaysShowUrl = alwaysShowUrl,
+                                        reduceAnim = reduceAnim,
+                                        showProgressBar = showProgressBar,
+                                        pillBottomMarginDp = pillBottomMargin,
+                                        pillCollapsedWidthDp = pillCollapsedWidth,
+                                        startPageBranding = startPageBranding,
+                                        scrimDarkness = scrimDarkness,
+                                        pillBlurOpacity = pillBlurOpacity,
                                         modifier = Modifier.fillMaxSize(),
                                         stickerContent = {
                                             val stickersEnabled by viewModel.stickersEnabled.collectAsStateWithLifecycle(initialValue = true)
@@ -319,7 +340,9 @@ fun BrowserScreen(
                                                     onUngroupTab = { tabId -> viewModel.ungroupTab(tabId) },
                                                     groupIdToShow = activeGroupId,
                                                     showIcons = showTabIcons,
-                                                    showNewTabButton = false
+                                                    showNewTabButton = false,
+                                                    chipHeight = tabChipHeight,
+                                                    activeStyle = activeTabStyle
                                                 )
                                                 
                                                 // Close Group Button Overlay
@@ -362,6 +385,8 @@ fun BrowserScreen(
                                         onOpenTabGroup = { viewModel.openTabGroup(it) },
                                         activeGroupId = activeGroupId,
                                         showIcons = showTabIcons,
+                                        chipHeight = tabChipHeight,
+                                        activeStyle = activeTabStyle,
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
@@ -489,6 +514,31 @@ fun BrowserScreen(
                             viewModel.startDownload(context, url, fileName)
                         },
                         modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // Update Available Dialog
+                val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+                updateInfo?.let { info ->
+                    AlertDialog(
+                        onDismissRequest = { viewModel.dismissUpdateDialog() },
+                        icon = { Icon(JusBrowseIcons.Info, contentDescription = null) },
+                        title = { Text("Update Available") },
+                        text = {
+                            Text("Version ${info.latestVersion} is available (current: ${BuildConfig.VERSION_NAME}).")
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                                viewModel.dismissUpdateDialog()
+                            }) { Text("Download") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { viewModel.dismissUpdateDialog() }) { Text("Later") }
+                        }
                     )
                 }
 
