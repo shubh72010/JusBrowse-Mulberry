@@ -1,4 +1,4 @@
-# JusBrowse Strait — Privacy-First Android Browser
+# JusBrowse Mulberry — Privacy-First Android Browser
 
 [![Engine](https://img.shields.io/badge/Engine-GeckoView%20Nightly-blue.svg)]()
 [![API](https://img.shields.io/badge/MinSdk-28%20%7C%20TargetSdk-37-green.svg)]()

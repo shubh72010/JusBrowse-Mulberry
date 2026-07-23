@@ -1,5 +1,5 @@
 ## 📱 Project Overview
-- **Official Name**: JusBrowse Strait
+- **Official Name**: JusBrowse Mulberry (fork of Strait)
 - **Target Platform**: Android 9.0 (API 28) / 3GB RAM minimum
 - **Implementation Language**: Kotlin (recommended)
 - **Rendering Engine**: Official Mozilla GeckoView (maven)
@@ -419,4 +419,4 @@ Basically:
 - Predictable disk usage growth (no unbounded storage consumption)
 
 ---
-*This document serves as the single source of truth for future AI agents working on JusBrowse Strait. All technical decisions should reference this specification.*
+*This document serves as the single source of truth for future AI agents working on JusBrowse Mulberry. All technical decisions should reference this specification.*

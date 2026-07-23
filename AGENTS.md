@@ -2,7 +2,7 @@
 
 ## Project
 
-**JusBrowse Strait** — single-module (`:app`) Android browser using **GeckoView Nightly**, Kotlin 2.4.10, Jetpack Compose + Material 3, AGP 9.3.0, Gradle 9.6.1. MinSdk 28, compileSdk/targetSdk 37. App ID: `com.jusdots.jusbrowse`.
+**JusBrowse Mulberry** (fork of `Strait`) — single-module (`:app`) Android browser using **GeckoView Nightly**, Kotlin 2.4.10, Jetpack Compose + Material 3, AGP 9.3.0, Gradle 9.6.1. MinSdk 28, compileSdk/targetSdk 37. App ID: `com.jusdots.jusbrowse`.
 
 Remotes: `mulberry` (shubh72010/JusBrowse-Mulberry, upstream), `geckoview` (shubh72010/JusBrowse-GeckoView, fork source).
 
