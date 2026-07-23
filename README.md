@@ -1,63 +1,74 @@
-# JusBrowse - The peakest Browser for Android
+# JusBrowse Strait — Privacy-First Android Browser
 
-[![Status](https://img.shields.io/badge/Status-Alpha%206.3-orange.svg)]()
-[![Engine](https://img.shields.io/badge/Engine-GeckoView-blue.svg)]()
+[![Engine](https://img.shields.io/badge/Engine-GeckoView%20Nightly-blue.svg)]()
+[![API](https://img.shields.io/badge/MinSdk-28%20%7C%20TargetSdk-37-green.svg)]()
 [![Privacy](https://img.shields.io/badge/Privacy-Hardened-green.svg)]()
 [![License](https://img.shields.io/badge/License-GPL%20v3-red.svg)](LICENSE)
 
-**JusBrowse** is a high-security, privacy-hardened web browser for Android. Built on the **GeckoView** engine (the foundation of Firefox), it is designed to provide "Tor-style" fingerprinting resistance, privacy-safe analytics, and deep engine-level isolation that standard Chromium-based browsers cannot achieve.
-
-> "Privacy is not a checkbox; it’s a war. Every API output can pull off the entire mask."
+A single-module Android browser built on **GeckoView Nightly** (not WebView). Storage-first architecture: disk is source of truth, RAM is temporary workspace.
 
 ---
 
-## 🛡️ Core Pillars
+## Engine & Networking
 
-- **GeckoView Powered**: Unlike the system WebView, GeckoView allows for total control over the network stack, rendering characteristics, and privacy flags.
-- **Fingerprinting Resistance**: Systematic normalization of high-entropy APIs (Canvas, Audio, WebGL, Screen, Locale) to match generic flagship profiles (powered by the JusFake engine).
-- **Privacy-Safe Analytics**: Minimalist, opt-out telemetry using a privacy-first Supabase backend. We only track installation and daily streaks to improve the app—no device fingerprinting or browsing data ever leaves your device.
-- **Persona Isolation**: Create distinct "Golden Profiles" (e.g., Pixel 8 Pro). Each persona runs in a strictly isolated Gecko session with its own cookie jar and storage context.
+- **GeckoView Nightly 154.0** — full browser engine with STRICT Enhanced Tracking Protection, HTTPS-Only mode, fingerprinting protection, and letterboxing
+- **DNS over HTTPS** — 23 preset providers (Cloudflare, Quad9, NextDNS, AdGuard, etc.) plus custom URL
+- **OkHttp 5.4** — shared HTTP client with system CA validation (no cert pinning), memory-only cookie isolation
+- **Ghost Cookie Jar** — per-container cookies in RAM only, never persisted
+
+## Privacy & Security
+
+- **Built-in WebExtension** (`jusbrowse-privacy`) — ad blocking, tracker blocking, native messaging bridge
+- **Per-container isolation** — 5 named containers (default, work, personal, banking, sandbox) via GeckoView `contextId`, each with separate cookies/cache/storage
+- **Post body sanitization** — strips analytics/tracking payloads from outgoing POST requests
+- **Download validation** — MIME checks, APK/JS warnings, VirusTotal + Koodous API scanning
+- **Screenshot protection** — toggleable `FLAG_SECURE` window flag
+- **WebAuthn/passkey support** — Android Credential Manager + legacy FIDO2 fallback
+- **Cookie consent dialog blocking** — engine-level
+- **Protection whitelist** — comma-separated domain exclusions
+
+## UI & Themes
+
+- **7 screens**: Browser, Bookmarks, History, Downloads, Settings, Extensions, Extension Detail
+- **Multi-view workspace** — draggable, resizable tab windows in desktop-like layout
+- **16 theme presets** (Vivaldi Red, Ocean Blue, Nord Ice, Dracula, Cyberpunk, etc.) + custom hex color
+- **6 animated background presets** + custom start page wallpaper with adjustable blur
+- **AMOLED black mode**, font selector, app icon badges, pill menu with gesture engine
+- **10+ UI configs**: tab chip height, active tab style, scrim darkness, pill position/width/opacity, toolbar position, compact mode
+
+## Media
+
+- **Airlock media system** — extract images, video, and audio from any page into a local gallery
+- **Airlock Vault** — private app-local storage with WebP conversion and `.nomedia` isolation
+- **ExoPlayer (Media3)** for video/audio playback
+- **Coil** for async image loading
+
+## Data & Storage
+
+- **Room DB** (v9) — bookmarks, history, downloads, extension registry, per-origin settings
+- **Protobuf snapshots** — binary-serialized tab sessions and workspace state saved to disk
+- **Encrypted SharedPreferences** — VirusTotal/Koodous API keys
+- **Tab lifecycle**: Active → Suspended → Serialized → Evicted (hard cap: 1 active + 2 suspended, 150MB GeckoView)
+- **Disk cache** — configurable 20–2500 MB with clear button
+
+## Build
+
+```bash
+./gradlew assembleDebug          # debug (no R8)
+./gradlew assembleRelease        # release (R8 fullMode, minify, obfuscation, shrink)
+./gradlew testDebugUnitTest      # 4 unit tests
+```
+
+MinSdk 28, targetSdk 37, ABI split: `arm64-v8a` + `armeabi-v7a` with universal APK. GeckoView Nightly ~150MB downloaded on first sync. NDK required.
+
+## Update Checker
+
+On launch, checks `api.github.com/repos/shubh72010/JusBrowse-Strait/releases/latest` for newer releases. Shows an in-app dialog and a "Check for updates" option in Settings.
 
 ---
 
-## 🚀 Key Features
+## License
 
-- **Multi-View Workspace**: Draggable, resizable windows in a desktop-like environment.
-- **Airlock Media System**: Extract images, videos, and audio from any page into a clean, local gallery.
-- **HTTPS-Only**: Native enforcement of encrypted connections at the engine level.
-- **Ghost Cookie Jar**: Memory-only cookie storage and per-tab context isolation.
-- **Stealth Bridging**: Randomized native-to-JS bridge names to prevent detection by anti-detect scripts.
+GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 
----
-
-## 📖 Documentation Roadmap
-
-Explore the project's internal documentation:
-
-- **[Architecture Overview](DOCUMENTATION.md)**: Deep dive into the `NetworkSurgeon`, `PrivacyBus`, and `FakeModeManager`.
-- **[Installation Guide](INSTALLATION.md)**: How to build from source and run on your device.
-- **[Security & Privacy Claims](SECURITY_CLAIMS.md)**: Detailed breakdown of our fingerprinting defenses and EFF benchmark results.
-- **[Features & FAQ](FAQ.md)**: Frequently asked questions and feature rundown.
-- **[Contributing](CONTRIBUTING.md)**: How to help the project grow.
-- **[Roadmap](ROADMAP.md)**: What's coming in Beta and beyond.
-
----
-
-## 🛠️ Quick Start
-
-### Build from Source
-1. Clone the repository.
-2. Open in Android Studio (Ladybug or later).
-3. Ensure you have the NDK installed (for GeckoView native components).
-4. Run `./gradlew assembleDebug` or build directly from Android Studio.
-
-*Detailed instructions in [INSTALLATION.md](INSTALLATION.md).*
-
----
-
-## ⚖️ License
-Licensed under the **GNU General Public License v3.0** or later. See [LICENSE](LICENSE) for details.
-
----
-*Developed by JusDots with passion for a free and private internet.*
-
+*Built by JusDots.*
