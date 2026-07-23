@@ -59,6 +59,10 @@ jobs:
           java-version: 17
       - run: $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "ndk;27.0.12077973" >/dev/null 2>&1 || true
       - uses: gradle/actions/setup-gradle@v4
+      - name: Generate debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - run: ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
@@ -77,6 +81,10 @@ jobs:
           java-version: 17
       - run: $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "ndk;27.0.12077973" >/dev/null 2>&1 || true
       - uses: gradle/actions/setup-gradle@v4
+      - name: Generate debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - run: ./gradlew assembleRelease --no-daemon
       - uses: actions/upload-artifact@v4
         with:
