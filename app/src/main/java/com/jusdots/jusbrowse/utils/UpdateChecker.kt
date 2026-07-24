@@ -45,6 +45,15 @@ object UpdateChecker {
                 .build()
 
             val response = client.newCall(request).execute()
+            if (response.code == 404) {
+                Log.i(TAG, "No releases found — treating as up to date")
+                return UpdateInfo(
+                    latestVersion = installedVersion,
+                    downloadUrl = FALLBACK_RELEASE_URL,
+                    releaseNotesUrl = FALLBACK_RELEASE_URL,
+                    isNewer = false
+                )
+            }
             if (!response.isSuccessful) {
                 Log.w(TAG, "GitHub API returned ${response.code}")
                 return null

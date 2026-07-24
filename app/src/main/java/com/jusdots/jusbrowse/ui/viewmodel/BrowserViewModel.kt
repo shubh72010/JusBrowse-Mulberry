@@ -426,7 +426,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val info = UpdateChecker.check(BuildConfig.VERSION_NAME)
                 if (info != null && info.isNewer) {
-                    _updateInfo.value = info
+                    _updateState.value = UpdateState.Available(info)
                 }
             } catch (_: Exception) { }
         }
@@ -502,19 +502,34 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
-    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
-    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+    sealed interface UpdateState {
+        data object Idle : UpdateState
+        data object Checking : UpdateState
+        data class Available(val info: UpdateInfo) : UpdateState
+        data object UpToDate : UpdateState
+        data object Failed : UpdateState
+    }
+
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
     fun dismissUpdateDialog() {
-        _updateInfo.value = null
+        _updateState.value = UpdateState.Idle
     }
 
     fun forceCheckForUpdates() {
         viewModelScope.launch(Dispatchers.IO) {
+            _updateState.value = UpdateState.Checking
             try {
                 val info = UpdateChecker.check(BuildConfig.VERSION_NAME)
-                _updateInfo.value = info
-            } catch (_: Exception) { }
+                _updateState.value = when {
+                    info == null -> UpdateState.Failed
+                    info.isNewer -> UpdateState.Available(info)
+                    else -> UpdateState.UpToDate
+                }
+            } catch (_: Exception) {
+                _updateState.value = UpdateState.Failed
+            }
         }
     }
     // Intent Handling

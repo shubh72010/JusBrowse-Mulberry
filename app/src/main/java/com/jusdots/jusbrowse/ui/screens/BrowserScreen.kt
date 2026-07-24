@@ -518,8 +518,9 @@ fun BrowserScreen(
                 }
 
                 // Update Available Dialog
-                val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
-                updateInfo?.let { info ->
+                val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+                if (updateState is BrowserViewModel.UpdateState.Available) {
+                    val info = (updateState as BrowserViewModel.UpdateState.Available).info
                     AlertDialog(
                         onDismissRequest = { viewModel.dismissUpdateDialog() },
                         icon = { Icon(JusBrowseIcons.Info, contentDescription = null) },

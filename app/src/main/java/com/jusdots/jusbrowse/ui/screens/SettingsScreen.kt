@@ -516,7 +516,7 @@ fun SettingsScreen(
                     onStickerLinkChange = { stickerLinkText = it })
 
                 // ========== ABOUT ==========
-                val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+                val updateState by viewModel.updateState.collectAsStateWithLifecycle()
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
@@ -536,21 +536,34 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
                         Spacer(modifier = Modifier.height(8.dp))
-                        if (updateInfo != null && updateInfo!!.isNewer) {
-                            TextButton(onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.downloadUrl)).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        when (updateState) {
+                            is BrowserViewModel.UpdateState.Available -> {
+                                val info = (updateState as BrowserViewModel.UpdateState.Available).info
+                                TextButton(onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                }) {
+                                    Text("Update available: v${info.latestVersion}", color = MaterialTheme.colorScheme.primary)
                                 }
-                                context.startActivity(intent)
-                            }) {
-                                Text("Update available: v${updateInfo!!.latestVersion}", color = MaterialTheme.colorScheme.primary)
                             }
-                        } else if (updateInfo != null) {
-                            Text("Up to date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
-                        } else {
-                            Text("Check for updates", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f), modifier = Modifier.clickable {
-                                viewModel.forceCheckForUpdates()
-                            })
+                            is BrowserViewModel.UpdateState.UpToDate -> {
+                                Text("Up to date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
+                            }
+                            is BrowserViewModel.UpdateState.Checking -> {
+                                Text("Checking...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
+                            }
+                            is BrowserViewModel.UpdateState.Failed -> {
+                                Text("Check failed. Tap to retry.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f), modifier = Modifier.clickable {
+                                    viewModel.forceCheckForUpdates()
+                                })
+                            }
+                            is BrowserViewModel.UpdateState.Idle -> {
+                                Text("Check for updates", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f), modifier = Modifier.clickable {
+                                    viewModel.forceCheckForUpdates()
+                                })
+                            }
                         }
                     }
                 }
