@@ -27,8 +27,8 @@ private data class GitHubAsset(
 object UpdateChecker {
 
     private const val TAG = "UpdateChecker"
-    private const val GITHUB_API = "https://api.github.com/repos/shubh72010/JusBrowse-Strait/releases/latest"
-    private const val FALLBACK_RELEASE_URL = "https://github.com/shubh72010/JusBrowse-Strait/releases/latest"
+    private const val GITHUB_API = "https://api.github.com/repos/shubh72010/JusBrowse-Mulberry/releases/latest"
+    private const val FALLBACK_RELEASE_URL = "https://github.com/shubh72010/JusBrowse-Mulberry/releases/latest"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
