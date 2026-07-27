@@ -5,6 +5,9 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 val userHome = System.getProperty("user.home")
 val props = gradle.startParameter.projectProperties.toMutableMap()
 props["android.injected.signing.store.file"] = "$userHome/.android/debug.keystore"

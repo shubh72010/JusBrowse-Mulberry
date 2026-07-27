@@ -6,6 +6,10 @@ plugins {
     id("kotlin-parcelize")
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
 android {
     namespace = "com.jusdots.jusbrowse"
     compileSdk = 37

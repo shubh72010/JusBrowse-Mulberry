@@ -23,6 +23,7 @@ credentials = "1.6.0"
 credentialsPlayServicesAuth = "1.6.0"
 playServicesAuth = "21.4.0"
 playServicesFido = "21.1.0"
+foojayResolver = "1.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -78,3 +79,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "kspVersion" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
+foojay-resolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version.ref = "foojayResolver" }
