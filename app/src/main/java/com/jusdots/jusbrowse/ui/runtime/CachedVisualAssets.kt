@@ -1,6 +1,7 @@
 package com.jusdots.jusbrowse.ui.runtime
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RadialGradient
@@ -104,12 +105,7 @@ enum class GradientDirection { VERTICAL, HORIZONTAL, RADIAL }
 fun BackgroundPreset.toStaticBitmap(width: Int, height: Int, cache: CachedBackgroundAssets): Bitmap {
     return when (this) {
         BackgroundPreset.NONE -> Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-        BackgroundPreset.DARK_VEIL -> cache.renderStaticGradient(colors, width, height, GradientDirection.VERTICAL)
-        BackgroundPreset.COLOR_BENDS -> cache.renderStaticGradient(colors, width, height, GradientDirection.HORIZONTAL)
-        BackgroundPreset.BALATRO -> cache.renderStaticGradient(colors, width, height, GradientDirection.RADIAL)
-        BackgroundPreset.DITHER -> cache.renderStaticGradient(colors, width, height, GradientDirection.HORIZONTAL)
-        BackgroundPreset.FAULTY_TERMINAL -> cache.renderStaticGradient(colors, width, height, GradientDirection.VERTICAL)
-        BackgroundPreset.PIXEL_BLAST -> cache.renderStaticGradient(colors, width, height, GradientDirection.RADIAL)
+        else -> Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 }
 

@@ -7,9 +7,11 @@ import android.content.IntentFilter
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
+import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -149,15 +151,25 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsStateWithLifecycle(initialValue = true)
-
-                    LaunchedEffect(flagSecureEnabled) {
-                        if (flagSecureEnabled) {
-                            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                        } else {
-                            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                        }
-                    }
+                     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsStateWithLifecycle(initialValue = true)
+                     val hideStatusBar by viewModel.hideStatusBar.collectAsStateWithLifecycle(initialValue = false)
+ 
+                     LaunchedEffect(flagSecureEnabled) {
+                         if (flagSecureEnabled) {
+                             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                         } else {
+                             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                         }
+                     }
+ 
+                     LaunchedEffect(hideStatusBar) {
+                         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                         if (hideStatusBar) {
+                             insetsController.hide(WindowInsets.Type.statusBars())
+                         } else {
+                             insetsController.show(WindowInsets.Type.statusBars())
+                         }
+                     }
 
                     BrowserScreen(viewModel = viewModel)
                 }

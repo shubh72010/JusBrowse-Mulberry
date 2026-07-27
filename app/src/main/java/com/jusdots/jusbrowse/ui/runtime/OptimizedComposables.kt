@@ -20,10 +20,12 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -139,20 +141,52 @@ fun CachedBackgroundRenderer(
 ) {
     if (preset == BackgroundPreset.NONE) return
 
+    val context = LocalContext.current
+    val imageFile = preset.imageFile
+
+    if (imageFile != null) {
+        var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+        LaunchedEffect(imageFile) {
+            try {
+                context.assets.open("wallpapers/$imageFile").use { stream ->
+                    bitmap = android.graphics.BitmapFactory.decodeStream(stream)
+                }
+            } catch (_: Exception) {
+                bitmap = null
+            }
+        }
+        if (bitmap != null) {
+            val imageBitmap = bitmap!!.asImageBitmap()
+            androidx.compose.foundation.Canvas(modifier = modifier.fillMaxSize()) {
+                val imgWidth = imageBitmap.width.toFloat()
+                val imgHeight = imageBitmap.height.toFloat()
+                val canvasWidth = size.width
+                val canvasHeight = size.height
+                val scale = maxOf(canvasWidth / imgWidth, canvasHeight / imgHeight)
+                val drawWidth = imgWidth * scale
+                val drawHeight = imgHeight * scale
+                val offsetX = (canvasWidth - drawWidth) / 2f
+                val offsetY = (canvasHeight - drawHeight) / 2f
+                drawImage(
+                    image = imageBitmap,
+                    dstOffset = androidx.compose.ui.unit.IntOffset(offsetX.toInt(), offsetY.toInt()),
+                    dstSize = androidx.compose.ui.unit.IntSize(drawWidth.toInt(), drawHeight.toInt())
+                )
+            }
+        } else {
+            Box(modifier = modifier.fillMaxSize().background(Color.Black))
+        }
+        return
+    }
+
+    if (preset.colors.isEmpty()) return
+
     val bitmap = remember(preset) {
         assets.renderStaticGradient(
             colors = preset.colors,
             width = 256,
             height = 256,
-            direction = when (preset) {
-                BackgroundPreset.BALATRO -> GradientDirection.RADIAL
-                BackgroundPreset.COLOR_BENDS -> GradientDirection.HORIZONTAL
-                BackgroundPreset.DARK_VEIL -> GradientDirection.VERTICAL
-                BackgroundPreset.DITHER -> GradientDirection.HORIZONTAL
-                BackgroundPreset.FAULTY_TERMINAL -> GradientDirection.VERTICAL
-                BackgroundPreset.PIXEL_BLAST -> GradientDirection.RADIAL
-                BackgroundPreset.NONE -> GradientDirection.VERTICAL
-            }
+            direction = GradientDirection.VERTICAL
         )
     }
 

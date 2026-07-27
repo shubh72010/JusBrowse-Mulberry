@@ -85,6 +85,9 @@ class PreferencesRepository(private val context: Context) {
         val UI_VARIANT = stringPreferencesKey("ui_variant")
         val AD_BLOCK_ENABLED = booleanPreferencesKey("ad_block_enabled")
         val PILL_BLUR_OPACITY = stringPreferencesKey("pill_blur_opacity")
+        val HIDE_STATUS_BAR = booleanPreferencesKey("hide_status_bar")
+        val CONTENT_CORNER_RADIUS = intPreferencesKey("content_corner_radius")
+        val CONTENT_PADDING = intPreferencesKey("content_padding")
     }
 
     val searchEngine: Flow<String> = context.dataStore.data.map { preferences ->
@@ -584,13 +587,43 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    val uiVariant: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.UI_VARIANT] ?: com.jusdots.jusbrowse.ui.theme.BrowserUiVariant.DEFAULT.name
-    }
+     val uiVariant: Flow<String> = context.dataStore.data.map { preferences ->
+         preferences[PreferenceKeys.UI_VARIANT] ?: com.jusdots.jusbrowse.ui.theme.BrowserUiVariant.DEFAULT.name
+     }
 
-    suspend fun setUiVariant(variant: String) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.UI_VARIANT] = variant
-        }
-    }
-}
+     val hideStatusBar: Flow<Boolean> = context.dataStore.data.map { preferences ->
+         preferences[PreferenceKeys.HIDE_STATUS_BAR] ?: false
+     }
+
+     val contentCornerRadius: Flow<Int> = context.dataStore.data.map { preferences ->
+         preferences[PreferenceKeys.CONTENT_CORNER_RADIUS] ?: 25
+     }
+
+     val contentPadding: Flow<Int> = context.dataStore.data.map { preferences ->
+         preferences[PreferenceKeys.CONTENT_PADDING] ?: 6
+     }
+
+     suspend fun setUiVariant(variant: String) {
+         context.dataStore.edit { preferences ->
+             preferences[PreferenceKeys.UI_VARIANT] = variant
+         }
+     }
+
+     suspend fun setHideStatusBar(enabled: Boolean) {
+         context.dataStore.edit { preferences ->
+             preferences[PreferenceKeys.HIDE_STATUS_BAR] = enabled
+         }
+     }
+
+     suspend fun setContentCornerRadius(radius: Int) {
+         context.dataStore.edit { preferences ->
+             preferences[PreferenceKeys.CONTENT_CORNER_RADIUS] = radius
+         }
+     }
+
+     suspend fun setContentPadding(padding: Int) {
+         context.dataStore.edit { preferences ->
+             preferences[PreferenceKeys.CONTENT_PADDING] = padding
+         }
+     }
+ }

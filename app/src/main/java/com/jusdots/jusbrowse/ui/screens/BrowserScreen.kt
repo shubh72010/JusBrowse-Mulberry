@@ -65,6 +65,8 @@ fun BrowserScreen(
     val startPageBranding by viewModel.startPageBranding.collectAsStateWithLifecycle(initialValue = "full")
     val scrimDarkness by viewModel.scrimDarkness.collectAsStateWithLifecycle(initialValue = "normal")
     val pillBlurOpacity by viewModel.pillBlurOpacity.collectAsStateWithLifecycle(initialValue = 0.7f)
+    val contentCornerRadius by viewModel.contentCornerRadius.collectAsStateWithLifecycle(initialValue = 25)
+    val contentPadding by viewModel.contentPadding.collectAsStateWithLifecycle(initialValue = 6)
     val tabChipHeight by viewModel.tabChipHeight.collectAsStateWithLifecycle(initialValue = "normal")
     val activeTabStyle by viewModel.activeTabStyle.collectAsStateWithLifecycle(initialValue = "gradient")
 
@@ -253,9 +255,11 @@ fun BrowserScreen(
                                         showProgressBar = showProgressBar,
                                         pillBottomMarginDp = pillBottomMargin,
                                         pillCollapsedWidthDp = pillCollapsedWidth,
-                                        startPageBranding = startPageBranding,
-                                        scrimDarkness = scrimDarkness,
-                                        pillBlurOpacity = pillBlurOpacity,
+                                         startPageBranding = startPageBranding,
+                                         scrimDarkness = scrimDarkness,
+                                         pillBlurOpacity = pillBlurOpacity,
+                                         contentCornerRadius = contentCornerRadius,
+                                         contentPadding = contentPadding,
                                         modifier = Modifier.fillMaxSize(),
                                         stickerContent = {
                                             val stickersEnabled by viewModel.stickersEnabled.collectAsStateWithLifecycle(initialValue = true)

@@ -2,8 +2,10 @@ package com.jusdots.jusbrowse.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -38,6 +40,12 @@ import com.jusdots.jusbrowse.ui.components.ColorPickerDialog
 import com.jusdots.jusbrowse.ui.components.DnsPresets
 import com.jusdots.jusbrowse.ui.components.DnsProvider
 import com.jusdots.jusbrowse.data.models.Sticker
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import com.jusdots.jusbrowse.ui.theme.AppFont
 import com.jusdots.jusbrowse.ui.theme.BackgroundPreset
 import com.jusdots.jusbrowse.ui.theme.BrowserTheme
@@ -84,8 +92,11 @@ fun SettingsScreen(
     val tabChipHeight by viewModel.tabChipHeight.collectAsStateWithLifecycle(initialValue = "normal")
     val activeTabStyle by viewModel.activeTabStyle.collectAsStateWithLifecycle(initialValue = "gradient")
     val scrimDarkness by viewModel.scrimDarkness.collectAsStateWithLifecycle(initialValue = "normal")
-    val showProgressBar by viewModel.showProgressBar.collectAsStateWithLifecycle(initialValue = true)
-    val startPageBranding by viewModel.startPageBranding.collectAsStateWithLifecycle(initialValue = "full")
+     val showProgressBar by viewModel.showProgressBar.collectAsStateWithLifecycle(initialValue = true)
+     val hideStatusBar by viewModel.hideStatusBar.collectAsStateWithLifecycle(initialValue = false)
+     val contentCornerRadius by viewModel.contentCornerRadius.collectAsStateWithLifecycle(initialValue = 25)
+     val contentPadding by viewModel.contentPadding.collectAsStateWithLifecycle(initialValue = 6)
+     val startPageBranding by viewModel.startPageBranding.collectAsStateWithLifecycle(initialValue = "full")
     val adBlockEnabled by viewModel.adBlockEnabled.collectAsStateWithLifecycle(initialValue = true)
     val pillBlurOpacity by viewModel.pillBlurOpacity.collectAsStateWithLifecycle(initialValue = 0.7f)
     val httpsOnly by viewModel.httpsOnly.collectAsStateWithLifecycle(initialValue = true)
@@ -220,211 +231,231 @@ fun SettingsScreen(
                     }
                 )
 
-                // ========== APPEARANCE ==========t
-                SettingsGroupHeader("Appearance")
+                // ========== APPEARANCE ==========
+                 SettingsGroupHeader("Appearance")
 
-                SettingsSwitch(title = "Dark Mode", checked = darkMode, onCheckedChange = { viewModel.setDarkMode(it) })
-                if (darkMode) {
-                    SettingsSwitch(title = "extra dark mode", checked = amoledBlackEnabled, onCheckedChange = { viewModel.setAmoledBlackEnabled(it) })
-                }
+                 SettingsSwitch(title = "Dark Mode", checked = darkMode, onCheckedChange = { viewModel.setDarkMode(it) })
+                 if (darkMode) {
+                     SettingsSwitch(title = "extra dark mode", checked = amoledBlackEnabled, onCheckedChange = { viewModel.setAmoledBlackEnabled(it) })
+                 }
 
-                // Theme Preset
-                var showColorPicker by remember { mutableStateOf(false) }
-                val customThemeColor = remember(customThemeColorHex) {
-                    if (customThemeColorHex.isNotBlank() && customThemeColorHex.startsWith("#")) {
-                        try { Color(android.graphics.Color.parseColor(customThemeColorHex)) } catch (_: Exception) { Color(0xFF8B5CF6) }
-                    } else Color(0xFF8B5CF6)
-                }
+                 // Theme Preset
+                 var showColorPicker by remember { mutableStateOf(false) }
+                 val customThemeColor = remember(customThemeColorHex) {
+                     if (customThemeColorHex.isNotBlank() && customThemeColorHex.startsWith("#")) {
+                         try { Color(android.graphics.Color.parseColor(customThemeColorHex)) } catch (_: Exception) { Color(0xFF8B5CF6) }
+                     } else Color(0xFF8B5CF6)
+                 }
 
-                Text("Theme", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(BrowserTheme.values().size) { index ->
-                        val theme = BrowserTheme.values()[index]
-                        ThemePreviewItem(
-                            theme = theme,
-                            isSelected = themePreset == theme.name,
-                            customColor = customThemeColor,
-                            onClick = {
-                                if (theme == BrowserTheme.CUSTOM_COLOR) {
-                                    showColorPicker = true
-                                } else {
-                                    viewModel.setThemePreset(theme.name)
-                                }
-                            }
-                        )
-                    }
-                }
+                 Text("Theme", style = MaterialTheme.typography.bodyLarge)
+                 LazyRow(
+                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+                     contentPadding = PaddingValues(vertical = 4.dp),
+                     modifier = Modifier.fillMaxWidth()
+                 ) {
+                     items(BrowserTheme.values().size) { index ->
+                         val theme = BrowserTheme.values()[index]
+                         ThemePreviewItem(
+                             theme = theme,
+                             isSelected = themePreset == theme.name,
+                             customColor = customThemeColor,
+                             onClick = {
+                                 if (theme == BrowserTheme.CUSTOM_COLOR) {
+                                     showColorPicker = true
+                                 } else {
+                                     viewModel.setThemePreset(theme.name)
+                                 }
+                             }
+                         )
+                     }
+                 }
 
-                if (showColorPicker) {
-                    ColorPickerDialog(
-                        initialColor = customThemeColor,
-                        onColorSelected = { color ->
-                            val r = (color.red * 255).toInt().coerceIn(0, 255)
-                            val g = (color.green * 255).toInt().coerceIn(0, 255)
-                            val b = (color.blue * 255).toInt().coerceIn(0, 255)
-                            val hex = "#%02X%02X%02X".format(r, g, b)
-                            viewModel.setCustomThemeColor(hex)
-                            viewModel.setThemePreset(BrowserTheme.CUSTOM_COLOR.name)
-                            showColorPicker = false
-                        },
-                        onDismiss = { showColorPicker = false }
-                    )
-                }
+                 if (showColorPicker) {
+                     ColorPickerDialog(
+                         initialColor = customThemeColor,
+                         onColorSelected = { color ->
+                             val r = (color.red * 255).toInt().coerceIn(0, 255)
+                             val g = (color.green * 255).toInt().coerceIn(0, 255)
+                             val b = (color.blue * 255).toInt().coerceIn(0, 255)
+                             val hex = "#%02X%02X%02X".format(r, g, b)
+                             viewModel.setCustomThemeColor(hex)
+                             viewModel.setThemePreset(BrowserTheme.CUSTOM_COLOR.name)
+                             showColorPicker = false
+                         },
+                         onDismiss = { showColorPicker = false }
+                     )
+                 }
 
-                SettingsSwitch(title = "Show Tab Icons", checked = showTabIcons, onCheckedChange = { viewModel.setShowTabIcons(it) })
-                SettingsSwitch(title = "Always Show URL", checked = alwaysShowUrl, onCheckedChange = { viewModel.setAlwaysShowUrl(it) })
-                SettingsSwitch(title = "Reduce Animations", checked = reduceAnim, onCheckedChange = { viewModel.setReducedAnimations(it) })
-                Text("Pill Position", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(listOf("60" to ("pill_low.webp" to "Low"), "90" to ("pill_default.webp" to "Default"), "120" to ("pill_high.webp" to "High"))) { (value, img) ->
-                        val (file, label) = img
-                        val isSelected = pillBottomMargin.toString() == value
-                        Surface(
-                            onClick = { viewModel.setPillBottomMargin(value.toInt()) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                            modifier = Modifier.width(120.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current).data("file:///android_asset/buttons/Pill_Position/$file").crossfade(true).build(),
-                                    contentDescription = label,
-                                    modifier = Modifier.height(80.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(label, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-                Text("Pill Width", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(listOf("200" to ("pill_narrow.webp" to "Narrow"), "260" to ("pill_default_width.webp" to "Default"), "320" to ("pill_wide.webp" to "Wide"))) { (value, img) ->
-                        val (file, label) = img
-                        val isSelected = pillCollapsedWidth.toString() == value
-                        Surface(
-                            onClick = { viewModel.setPillCollapsedWidth(value.toInt()) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                            modifier = Modifier.width(120.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current).data("file:///android_asset/buttons/Pill_Width/$file").crossfade(true).build(),
-                                    contentDescription = label,
-                                    modifier = Modifier.height(80.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(label, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-                SettingsSwitch(title = "Desktop Mode", checked = desktopMode, onCheckedChange = { viewModel.setGlobalDesktopMode(it) })
-                SettingsSelector(title = "New Tab Position", selected = newTabPos, options = listOf("end" to "End", "after_current" to "After current"), onSelect = { viewModel.setNewTabPosition(it) })
-                Text("Tab Chip Height", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(listOf("compact" to ("tab_chip_height_compact.webp" to "Compact"), "normal" to ("tab_chip_height_default.webp" to "Default"), "large" to ("tab_chip_height_large.webp" to "Large"))) { (value, img) ->
-                        val (file, label) = img
-                        val isSelected = tabChipHeight == value
-                        Surface(
-                            onClick = { viewModel.setTabChipHeight(value) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                            modifier = Modifier.width(120.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current).data("file:///android_asset/buttons/Tab_Chip_Height/$file").crossfade(true).build(),
-                                    contentDescription = label,
-                                    modifier = Modifier.height(80.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(label, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-                SettingsSelector(title = "Active Tab Style", selected = activeTabStyle, options = listOf("gradient" to "Gradient", "solid" to "Solid", "outline" to "Outline"), onSelect = { viewModel.setActiveTabStyle(it) })
-                SettingsSelector(title = "Scrim Darkness", selected = scrimDarkness, options = listOf("light" to "Light", "normal" to "Normal", "dark" to "Dark"), onSelect = { viewModel.setScrimDarkness(it) })
-                SettingsSwitch(title = "Progress Bar", checked = showProgressBar, onCheckedChange = { viewModel.setShowProgressBar(it) })
-                SettingsSelector(title = "Start Page Branding", selected = startPageBranding, options = listOf("full" to "Full", "logo_only" to "Logo only", "clean" to "Clean"), onSelect = { viewModel.setStartPageBranding(it) })
+                 // Font
+                 Text("Font", style = MaterialTheme.typography.bodyLarge)
+                 LazyRow(
+                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                     contentPadding = PaddingValues(vertical = 4.dp),
+                     modifier = Modifier.fillMaxWidth()
+                 ) {
+                     items(AppFont.values().size) { index ->
+                         val font = AppFont.values()[index]
+                         val isSelected = appFont == font.name
+                         Surface(
+                             onClick = { viewModel.setAppFont(font.name) },
+                             shape = RoundedCornerShape(12.dp),
+                             color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                             border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                             modifier = Modifier.width(120.dp).height(80.dp)
+                         ) {
+                             Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                 Text("Ag", style = androidx.compose.ui.text.TextStyle(fontFamily = font.fontFamily, fontSize = 24.sp, fontWeight = FontWeight.Bold))
+                                 Spacer(modifier = Modifier.height(2.dp))
+                                 Text(font.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                             }
+                         }
+                     }
+                 }
 
-                // Pill opacity
-                Text("Pill Opacity", style = MaterialTheme.typography.bodyLarge)
-                Slider(
-                    value = pillBlurOpacity, onValueChange = { viewModel.setPillBlurOpacity(it) },
-                    valueRange = 0.1f..1.0f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
-                )
+                 // Content Area
+                 SettingsGroupHeader("Content Area")
+                 SettingsSwitch(title = "Hide Status Bar", checked = hideStatusBar, onCheckedChange = { viewModel.setHideStatusBar(it) })
+                  Text("Corner Radius", style = MaterialTheme.typography.bodyLarge)
+                  Slider(
+                      value = contentCornerRadius.toFloat(), onValueChange = { viewModel.setContentCornerRadius(it.toInt()) },
+                      valueRange = 0f..100f,
+                      steps = 99,
+                      colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                  )
+                  Text("Padding", style = MaterialTheme.typography.bodyLarge)
+                  Slider(
+                      value = contentPadding.toFloat(), onValueChange = { viewModel.setContentPadding(it.toInt()) },
+                      valueRange = 0f..100f,
+                      steps = 99,
+                      colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                  )
 
-                // Font
-                Text("Font", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(AppFont.values().size) { index ->
-                        val font = AppFont.values()[index]
-                        val isSelected = appFont == font.name
-                        Surface(
-                            onClick = { viewModel.setAppFont(font.name) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                            modifier = Modifier.width(120.dp).height(80.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Ag", style = androidx.compose.ui.text.TextStyle(fontFamily = font.fontFamily, fontSize = 24.sp, fontWeight = FontWeight.Bold))
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(font.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                            }
-                        }
-                    }
-                }
+                 // Start Page
+                 SettingsGroupHeader("Start Page")
+                 SettingsSelector(title = "Branding", selected = startPageBranding, options = listOf("full" to "Full", "logo_only" to "Logo only", "clean" to "Clean"), onSelect = { viewModel.setStartPageBranding(it) })
+                 Text("Background", style = MaterialTheme.typography.bodyLarge)
+                 LazyRow(
+                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                     contentPadding = PaddingValues(vertical = 4.dp),
+                     modifier = Modifier.fillMaxWidth()
+                 ) {
+                     items(BackgroundPreset.values().size) { index ->
+                         val preset = BackgroundPreset.values()[index]
+                         BackgroundPresetCard(
+                             preset = preset,
+                             isSelected = backgroundPreset == preset.name,
+                             onClick = { viewModel.setBackgroundPreset(preset.name) }
+                         )
+                     }
+                 }
+                 WallpaperSection(viewModel, wallpaperUri, blurAmount)
 
-                // Background Presets
-                Text("Background", style = MaterialTheme.typography.bodyLarge)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(BackgroundPreset.values().size) { index ->
-                        val preset = BackgroundPreset.values()[index]
-                        BackgroundPresetCard(
-                            preset = preset,
-                            isSelected = backgroundPreset == preset.name,
-                            onClick = { viewModel.setBackgroundPreset(preset.name) }
-                        )
-                    }
-                }
+                 // Toolbar & Bar
+                 SettingsGroupHeader("Toolbar & Bar")
+                 Text("Pill Position", style = MaterialTheme.typography.bodyLarge)
+                 LazyRow(
+                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                     contentPadding = PaddingValues(vertical = 4.dp),
+                     modifier = Modifier.fillMaxWidth()
+                 ) {
+                     items(listOf("60" to ("pill_low.webp" to "Low"), "90" to ("pill_default.webp" to "Default"), "120" to ("pill_high.webp" to "High"))) { (value, img) ->
+                         val (file, label) = img
+                         val isSelected = pillBottomMargin.toString() == value
+                         Surface(
+                             onClick = { viewModel.setPillBottomMargin(value.toInt()) },
+                             shape = RoundedCornerShape(12.dp),
+                             color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                             border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                             modifier = Modifier.width(120.dp)
+                         ) {
+                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                                 AsyncImage(
+                                     model = ImageRequest.Builder(LocalContext.current).data("file:///android_asset/buttons/Pill_Position/$file").crossfade(true).build(),
+                                     contentDescription = label,
+                                     modifier = Modifier.height(80.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)),
+                                     contentScale = ContentScale.Crop
+                                 )
+                                 Spacer(modifier = Modifier.height(4.dp))
+                                 Text(label, style = MaterialTheme.typography.labelSmall)
+                             }
+                         }
+                     }
+                 }
+                 Text("Pill Width", style = MaterialTheme.typography.bodyLarge)
+                 LazyRow(
+                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                     contentPadding = PaddingValues(vertical = 4.dp),
+                     modifier = Modifier.fillMaxWidth()
+                 ) {
+                     items(listOf("200" to ("pill_narrow.webp" to "Narrow"), "260" to ("pill_default_width.webp" to "Default"), "320" to ("pill_wide.webp" to "Wide"))) { (value, img) ->
+                         val (file, label) = img
+                         val isSelected = pillCollapsedWidth.toString() == value
+                         Surface(
+                             onClick = { viewModel.setPillCollapsedWidth(value.toInt()) },
+                             shape = RoundedCornerShape(12.dp),
+                             color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                             border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                             modifier = Modifier.width(120.dp)
+                         ) {
+                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                                 AsyncImage(
+                                     model = ImageRequest.Builder(LocalContext.current).data("file:///android_asset/buttons/Pill_Width/$file").crossfade(true).build(),
+                                     contentDescription = label,
+                                     modifier = Modifier.height(80.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)),
+                                     contentScale = ContentScale.Crop
+                                 )
+                                 Spacer(modifier = Modifier.height(4.dp))
+                                 Text(label, style = MaterialTheme.typography.labelSmall)
+                             }
+                         }
+                     }
+                 }
+                 Text("Tab Chip Height", style = MaterialTheme.typography.bodyLarge)
+                 LazyRow(
+                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                     contentPadding = PaddingValues(vertical = 4.dp),
+                     modifier = Modifier.fillMaxWidth()
+                 ) {
+                     items(listOf("compact" to ("tab_chip_height_compact.webp" to "Compact"), "normal" to ("tab_chip_height_default.webp" to "Default"), "large" to ("tab_chip_height_large.webp" to "Large"))) { (value, img) ->
+                         val (file, label) = img
+                         val isSelected = tabChipHeight == value
+                         Surface(
+                             onClick = { viewModel.setTabChipHeight(value) },
+                             shape = RoundedCornerShape(12.dp),
+                             color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                             border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                             modifier = Modifier.width(120.dp)
+                         ) {
+                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                                 AsyncImage(
+                                     model = ImageRequest.Builder(LocalContext.current).data("file:///android_asset/buttons/Tab_Chip_Height/$file").crossfade(true).build(),
+                                     contentDescription = label,
+                                     modifier = Modifier.height(80.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)),
+                                     contentScale = ContentScale.Crop
+                                 )
+                                 Spacer(modifier = Modifier.height(4.dp))
+                                 Text(label, style = MaterialTheme.typography.labelSmall)
+                             }
+                         }
+                     }
+                 }
+                 SettingsSelector(title = "Active Tab Style", selected = activeTabStyle, options = listOf("gradient" to "Gradient", "solid" to "Solid", "outline" to "Outline"), onSelect = { viewModel.setActiveTabStyle(it) })
+                 SettingsSelector(title = "Scrim Darkness", selected = scrimDarkness, options = listOf("light" to "Light", "normal" to "Normal", "dark" to "Dark"), onSelect = { viewModel.setScrimDarkness(it) })
+                 Text("Pill Opacity", style = MaterialTheme.typography.bodyLarge)
+                 Slider(
+                     value = pillBlurOpacity, onValueChange = { viewModel.setPillBlurOpacity(it) },
+                     valueRange = 0.1f..1.0f,
+                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                 )
+                 SettingsSwitch(title = "Progress Bar", checked = showProgressBar, onCheckedChange = { viewModel.setShowProgressBar(it) })
 
-                // Wallpaper
-                WallpaperSection(viewModel, wallpaperUri, blurAmount)
+                 // Navigation & Tabs
+                 SettingsGroupHeader("Navigation & Tabs")
+                 SettingsSwitch(title = "Show Tab Icons", checked = showTabIcons, onCheckedChange = { viewModel.setShowTabIcons(it) })
+                 SettingsSwitch(title = "Always Show URL", checked = alwaysShowUrl, onCheckedChange = { viewModel.setAlwaysShowUrl(it) })
+                 SettingsSwitch(title = "Reduce Animations", checked = reduceAnim, onCheckedChange = { viewModel.setReducedAnimations(it) })
+                 SettingsSwitch(title = "Desktop Mode", checked = desktopMode, onCheckedChange = { viewModel.setGlobalDesktopMode(it) })
+                 SettingsSelector(title = "New Tab Position", selected = newTabPos, options = listOf("end" to "End", "after_current" to "After current"), onSelect = { viewModel.setNewTabPosition(it) })
 
                 // ========== EXTENSIONS ==========
                 SettingsGroupHeader("Extensions")
@@ -773,10 +804,18 @@ fun ThemePreviewItem(
     customColor: Color? = null,
     onClick: () -> Unit
 ) {
-    val color = theme.previewColor(customColor = customColor)
+    val context = LocalContext.current
+    val materialYouColor = if (theme == BrowserTheme.MATERIAL_YOU) {
+        val scheme = if (isSystemInDarkTheme()) {
+            dynamicDarkColorScheme(context)
+        } else {
+            dynamicLightColorScheme(context)
+        }
+        scheme.primary
+    } else theme.previewColor(customColor = customColor)
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(color).then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)) {
+        Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(materialYouColor).then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)) {
             if (isSelected) { Icon(JusBrowseIcons.Check, "Selected", tint = Color.White, modifier = Modifier.align(Alignment.Center)) }
         }
         Text(theme.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall)

@@ -88,6 +88,8 @@ fun AddressBarWithGeckoView(
     startPageBranding: String = "full",
     scrimDarkness: String = "normal",
     pillBlurOpacity: Float = 0.7f,
+    contentCornerRadius: Int = 25,
+    contentPadding: Int = 6,
     modifier: Modifier = Modifier,
     stickerContent: @Composable () -> Unit = {}
 ) {
@@ -548,52 +550,64 @@ fun AddressBarWithGeckoView(
                 }
             }
     ) {
-        // 1. GeckoView Content Layer
-        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        // 1. GeckoView Content Layer — white rounded web content card
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
             if (tab != null && tab.url != "about:blank") {
                 key(tab.id) {
                     if (session != null) {
-                        val density = androidx.compose.ui.platform.LocalDensity.current
-                        val swipeZonePx = with(density) { 120.dp.toPx() }
-                        GeckoWebView(
-                            session = session,
-                            modifier = Modifier.fillMaxSize(),
-                            onViewCreated = { geckoView ->
-                                if (!forceStatic) {
-                                    var touchStartY = -1f
-                                    var swipeDetected = false
-                                    geckoView.setOnTouchListener { v, event ->
-                                        when (event.action) {
-                                            MotionEvent.ACTION_DOWN -> {
-                                                val h = v.height.toFloat()
-                                                if (event.y > h - swipeZonePx) {
-                                                    touchStartY = event.y
-                                                    swipeDetected = false
-                                                } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = contentPadding.dp, top = 8.dp, end = contentPadding.dp, bottom = 72.dp)
+                                .clip(RoundedCornerShape(contentCornerRadius.dp))
+                                .background(Color.White)
+                        ) {
+                            val density = androidx.compose.ui.platform.LocalDensity.current
+                            val swipeZonePx = with(density) { 120.dp.toPx() }
+                            GeckoWebView(
+                                session = session,
+                                modifier = Modifier.fillMaxSize(),
+                                onViewCreated = { geckoView ->
+                                    if (!forceStatic) {
+                                        var touchStartY = -1f
+                                        var swipeDetected = false
+                                        geckoView.setOnTouchListener { v, event ->
+                                            when (event.action) {
+                                                MotionEvent.ACTION_DOWN -> {
+                                                    val h = v.height.toFloat()
+                                                    if (event.y > h - swipeZonePx) {
+                                                        touchStartY = event.y
+                                                        swipeDetected = false
+                                                    } else {
+                                                        touchStartY = -1f
+                                                    }
+                                                    false
+                                                }
+                                                MotionEvent.ACTION_MOVE -> {
+                                                    if (touchStartY >= 0f && !swipeDetected &&
+                                                        event.y - touchStartY < -30f
+                                                    ) {
+                                                        swipeDetected = true
+                                                        viewModel.triggerRevealBottomBar()
+                                                    }
+                                                    false
+                                                }
+                                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                                                     touchStartY = -1f
+                                                    swipeDetected = false
+                                                    false
                                                 }
-                                                false
+                                                else -> false
                                             }
-                                            MotionEvent.ACTION_MOVE -> {
-                                                if (touchStartY >= 0f && !swipeDetected &&
-                                                    event.y - touchStartY < -30f
-                                                ) {
-                                                    swipeDetected = true
-                                                    viewModel.triggerRevealBottomBar()
-                                                }
-                                                false
-                                            }
-                                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                                touchStartY = -1f
-                                                swipeDetected = false
-                                                false
-                                            }
-                                            else -> false
                                         }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     } else {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
                             androidx.compose.material3.CircularProgressIndicator(

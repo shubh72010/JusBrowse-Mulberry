@@ -62,3 +62,4 @@ agent-skills/
 
 # Knowledge graph artifacts (codebase-memory-mcp)
 .codebase-memory/
+.kotlin/

@@ -52,6 +52,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.jusdots.jusbrowse.BuildConfig
 import com.jusdots.jusbrowse.utils.UpdateChecker
+import com.jusdots.jusbrowse.controller.UpdateController
+import com.jusdots.jusbrowse.controller.UpdateControllerImpl
 import com.jusdots.jusbrowse.utils.UpdateInfo
 
 data class TabWindowState(
@@ -64,6 +66,8 @@ data class TabWindowState(
 class BrowserViewModel(application: Application) : AndroidViewModel(application) {
 
     val strait = com.jusdots.jusbrowse.StraitArchitecture(application)
+
+    private val updateController = UpdateControllerImpl()
 
     private val database = BrowserApplication.database
     private val bookmarkRepository = BookmarkRepository(database.bookmarkDao())
@@ -227,8 +231,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val maxCacheSizeMB = preferencesRepository.maxCacheSizeMB
     val multiMediaPlaybackEnabled = preferencesRepository.multiMediaPlaybackEnabled
     val appFont = preferencesRepository.appFont
-    val browserMode = preferencesRepository.browserMode
-    val uiVariant = preferencesRepository.uiVariant
+     val browserMode = preferencesRepository.browserMode
+     val uiVariant = preferencesRepository.uiVariant
+     val hideStatusBar = preferencesRepository.hideStatusBar
+     val contentCornerRadius = preferencesRepository.contentCornerRadius
+     val contentPadding = preferencesRepository.contentPadding
 
     // Combined preference groups to reduce individual collectAsStateWithLifecycle calls.
     // Each group emits a single data class when any member changes, avoiding cascading
@@ -424,9 +431,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         // Background update check — run once on init, non-blocking
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val info = UpdateChecker.check(BuildConfig.VERSION_NAME)
-                if (info != null && info.isNewer) {
-                    _updateState.value = UpdateState.Available(info)
+                when (val result = updateController.checkForUpdates()) {
+                    is UpdateController.CheckResult.Available -> _updateState.value = UpdateState.Available(result.info)
+                    else -> Unit
                 }
             } catch (_: Exception) { }
         }
@@ -520,15 +527,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun forceCheckForUpdates() {
         viewModelScope.launch(Dispatchers.IO) {
             _updateState.value = UpdateState.Checking
-            try {
-                val info = UpdateChecker.check(BuildConfig.VERSION_NAME)
-                _updateState.value = when {
-                    info == null -> UpdateState.Failed
-                    info.isNewer -> UpdateState.Available(info)
-                    else -> UpdateState.UpToDate
-                }
-            } catch (_: Exception) {
-                _updateState.value = UpdateState.Failed
+            val checkResult = updateController.checkForUpdates()
+            _updateState.value = when (checkResult) {
+                is UpdateController.CheckResult.Available -> UpdateState.Available(checkResult.info)
+                UpdateController.CheckResult.UpToDate -> UpdateState.UpToDate
+                else -> UpdateState.Failed
             }
         }
     }
@@ -1697,11 +1700,23 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { preferencesRepository.setBrowserMode(mode) }
     }
 
-    fun setUiVariant(variant: String) {
-        viewModelScope.launch { preferencesRepository.setUiVariant(variant) }
-    }
+     fun setUiVariant(variant: String) {
+         viewModelScope.launch { preferencesRepository.setUiVariant(variant) }
+     }
 
-    private fun syncDesktopModeToAllTabs(enabled: Boolean) {
+     fun setHideStatusBar(enabled: Boolean) {
+         viewModelScope.launch { preferencesRepository.setHideStatusBar(enabled) }
+     }
+
+     fun setContentCornerRadius(radius: Int) {
+         viewModelScope.launch { preferencesRepository.setContentCornerRadius(radius) }
+     }
+
+     fun setContentPadding(padding: Int) {
+         viewModelScope.launch { preferencesRepository.setContentPadding(padding) }
+     }
+
+     private fun syncDesktopModeToAllTabs(enabled: Boolean) {
         for (index in _tabDescriptors.indices) {
             val desc = _tabDescriptors[index]
             _tabDescriptors[index] = desc.copy(isDesktopMode = enabled)

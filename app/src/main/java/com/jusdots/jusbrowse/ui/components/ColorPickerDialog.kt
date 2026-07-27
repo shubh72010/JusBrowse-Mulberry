@@ -1,6 +1,8 @@
 package com.jusdots.jusbrowse.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -125,27 +127,23 @@ fun ColorPickerDialog(
                         Color(0xFF8E24AA), Color(0xFFD81B60), Color(0xFF6D4C41)
                     )
                     presets.forEach { presetColor ->
+                        val isSelected = areColorsClose(presetColor, currentColor)
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
                                 .background(presetColor)
-                                .then(
-                                    if (presetColor == currentColor) {
-                                        Modifier.background(
-                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                            CircleShape
-                                        )
-                                    } else Modifier
-                                )
-                                .then(
-                                    if (presetColor == currentColor) {
-                                        Modifier.padding(2.dp)
-                                    } else Modifier
-                                ),
+                                .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
+                                .clickable {
+                                    val parsed = FloatArray(3).also { android.graphics.Color.colorToHSV(presetColor.toArgb(), it) }
+                                    hue = parsed[0]
+                                    saturation = parsed[1]
+                                    value = parsed[2]
+                                    hexText = presetColor.toHexString()
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            if (presetColor == currentColor) {
+                            if (isSelected) {
                                 Box(
                                     modifier = Modifier
                                         .size(28.dp)
@@ -176,4 +174,10 @@ private fun Color.toHexString(): String {
     val g = (green * 255).roundToInt()
     val b = (blue * 255).roundToInt()
     return "#%02X%02X%02X".format(r, g, b)
+}
+
+private fun areColorsClose(a: Color, b: Color, threshold: Int = 30): Boolean {
+    return kotlin.math.abs(a.red.toInt() - b.red.toInt()) < threshold &&
+        kotlin.math.abs(a.green.toInt() - b.green.toInt()) < threshold &&
+        kotlin.math.abs(a.blue.toInt() - b.blue.toInt()) < threshold
 }
