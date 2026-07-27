@@ -14,9 +14,9 @@ android {
         applicationId = "com.jusdots.jusbrowse"
         minSdk = 28 // Spec requirement: Android 9.0 (API 28) minimum per JusBrowse-Strait-Project-Specification.txt
         targetSdk = 37
-        versionCode = 2
+        versionCode = 3
 
-        versionName = "0.0.2"
+        versionName = "0.0.2-1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         androidResources {
