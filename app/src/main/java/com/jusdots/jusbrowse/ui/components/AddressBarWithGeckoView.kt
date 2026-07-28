@@ -110,6 +110,7 @@ fun AddressBarWithGeckoView(
     pillBlurOpacity: Float = 0.7f,
     contentCornerRadius: Int = 25,
     contentPadding: Int = 6,
+    contentBottomPadding: Int = 72,
     modifier: Modifier = Modifier,
     stickerContent: @Composable () -> Unit = {}
 ) {
@@ -611,7 +612,7 @@ fun AddressBarWithGeckoView(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(start = contentPadding.dp, top = 8.dp, end = contentPadding.dp, bottom = 72.dp)
+                                .padding(start = contentPadding.dp, top = 8.dp, end = contentPadding.dp, bottom = contentBottomPadding.dp)
                                 .clip(RoundedCornerShape(contentCornerRadius.dp))
                                 .background(Color.White)
                         ) {

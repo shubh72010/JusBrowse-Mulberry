@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jusdots.jusbrowse.data.repository.DownloadRepository
@@ -151,25 +153,26 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                     val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsStateWithLifecycle(initialValue = true)
-                     val hideStatusBar by viewModel.hideStatusBar.collectAsStateWithLifecycle(initialValue = false)
- 
-                     LaunchedEffect(flagSecureEnabled) {
-                         if (flagSecureEnabled) {
-                             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                         } else {
-                             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                         }
-                     }
- 
-                     LaunchedEffect(hideStatusBar) {
-                         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-                         if (hideStatusBar) {
-                             insetsController.hide(WindowInsets.Type.statusBars())
-                         } else {
-                             insetsController.show(WindowInsets.Type.statusBars())
-                         }
-                     }
+                      val flagSecureEnabled by viewModel.flagSecureEnabled.collectAsStateWithLifecycle(initialValue = true)
+                      val hideStatusBar by viewModel.hideStatusBar.collectAsStateWithLifecycle(initialValue = false)
+
+                      LaunchedEffect(flagSecureEnabled) {
+                          if (flagSecureEnabled) {
+                              window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                          } else {
+                              window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                          }
+                      }
+
+                      val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                      LaunchedEffect(isLandscape, hideStatusBar) {
+                          val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                          if (isLandscape || hideStatusBar) {
+                              insetsController.hide(WindowInsets.Type.statusBars())
+                          } else {
+                              insetsController.show(WindowInsets.Type.statusBars())
+                          }
+                      }
 
                     BrowserScreen(viewModel = viewModel)
                 }

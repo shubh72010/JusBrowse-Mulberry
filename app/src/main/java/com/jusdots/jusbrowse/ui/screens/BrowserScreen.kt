@@ -2,9 +2,12 @@ package com.jusdots.jusbrowse.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import com.jusdots.jusbrowse.ui.components.JusBrowseIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,6 +22,7 @@ import com.jusdots.jusbrowse.ui.components.AddressBarWithGeckoView
 import com.jusdots.jusbrowse.ui.components.BottomTabBar
 import com.jusdots.jusbrowse.ui.components.BrowserToolBar
 import com.jusdots.jusbrowse.ui.components.FreeformWorkspace
+import com.jusdots.jusbrowse.ui.components.TabChip
 import com.jusdots.jusbrowse.ui.viewmodel.BrowserViewModel
 import com.jusdots.jusbrowse.ui.components.AirlockGallery
 import com.jusdots.jusbrowse.ui.components.AirlockViewer
@@ -38,11 +42,11 @@ import android.net.Uri
 import android.widget.VideoView
 import androidx.compose.ui.layout.ContentScale
 import com.jusdots.jusbrowse.BuildConfig
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.viewinterop.AndroidView
-
 import android.content.Intent
+import android.content.res.Configuration
 import com.jusdots.jusbrowse.utils.UpdateInfo
+import androidx.compose.ui.platform.LocalConfiguration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -236,162 +240,260 @@ fun BrowserScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 when (currentScreen) {
                     Screen.BROWSER -> {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            if (isMultiView) {
-                                FreeformWorkspace(
-                                    viewModel = viewModel,
-                                    tabs = tabs,
-                                    modifier = Modifier.fillMaxSize().padding(paddingValues)
-                                )
-                            } else {
-                                if (activeTabIndex in tabs.indices) {
-                                    AddressBarWithGeckoView(
-                                        viewModel = viewModel,
-                                        tab = tabs.getOrNull(activeTabIndex),
-                                        onOpenAirlockGallery = { openAirlockGallery() },
-                                        alwaysShowUrl = alwaysShowUrl,
-                                        reduceAnim = reduceAnim,
-                                        showProgressBar = showProgressBar,
-                                        pillBottomMarginDp = pillBottomMargin,
-                                        pillCollapsedWidthDp = pillCollapsedWidth,
-                                         startPageBranding = startPageBranding,
-                                         scrimDarkness = scrimDarkness,
-                                         pillBlurOpacity = pillBlurOpacity,
-                                         contentCornerRadius = contentCornerRadius,
-                                         contentPadding = contentPadding,
-                                        modifier = Modifier.fillMaxSize(),
-                                        stickerContent = {
-                                            val stickersEnabled by viewModel.stickersEnabled.collectAsStateWithLifecycle(initialValue = true)
-                                            val activeTab = tabs.getOrNull(activeTabIndex)
-                                            val isStartPage = activeTab?.url == "about:blank" || activeTab?.url?.isEmpty() == true
-                                            
-                                            if (stickersEnabled && currentScreen == Screen.BROWSER && !isMultiView && isStartPage) {
-                                                BoxWithConstraints(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .pointerInput(Unit) {
-                                                            detectTapGestures {
-                                                                viewModel.setSelectedStickerId(null)
-                                                            }
-                                                        }
-                                                ) {
-                                                    val sWidth = maxWidth.value
-                                                    val sHeight = maxHeight.value
-                                                    
-                                                    stickers.forEach { sticker ->
-                                                        TransformableSticker(
-                                                            sticker = sticker,
-                                                            isSelected = selectedStickerId == sticker.id,
-                                                            screenWidth = sWidth,
-                                                            screenHeight = sHeight,
-                                                            onTransform = { x, y, w, h, r ->
-                                                                viewModel.updateStickerTransform(sticker.id, x, y, w, h, r)
-                                                            },
-                                                            onClick = {
-                                                                viewModel.setSelectedStickerId(sticker.id)
-                                                                sticker.link?.let { link ->
-                                                                    viewModel.navigateToUrlByTabId(activeTab?.id ?: "", link)
+                         val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                        if (isLandscape && !isMultiView) {
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                // Left: slim vertical tab strip — tabs are the dominant companion
+                                Box(
+                                    modifier = Modifier
+                                        .width(120.dp)
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(rememberScrollState())
+                                            .padding(top = 8.dp, bottom = 8.dp)
+                                    ) {
+                                        tabs.forEachIndexed { index, tab ->
+                                            val isActive = tabs.getOrNull(activeTabIndex)?.id == tab.id
+                                            TabChip(
+                                                tab = tab,
+                                                isActive = isActive,
+                                                onClick = { viewModel.switchTab(index) },
+                                                onClose = { viewModel.closeTab(index) },
+                                                onUngroup = { viewModel.ungroupTab(tab.id) },
+                                                showIcon = showTabIcons,
+                                                chipHeight = "normal",
+                                                activeStyle = activeTabStyle,
+                                                compact = true,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 1.dp)
+                                            )
+                                        }
+                                        // New Tab button
+                                        FilledTonalIconButton(
+                                            onClick = { viewModel.createNewTab() },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                                contentColor = MaterialTheme.colorScheme.primary
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = JusBrowseIcons.Add,
+                                                contentDescription = "New Tab",
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Right: web renderer — dominant element, fills all available space
+                                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                    if (activeTabIndex in tabs.indices) {
+                                        AddressBarWithGeckoView(
+                                            viewModel = viewModel,
+                                            tab = tabs.getOrNull(activeTabIndex),
+                                            onOpenAirlockGallery = { openAirlockGallery() },
+                                            alwaysShowUrl = alwaysShowUrl,
+                                            reduceAnim = reduceAnim,
+                                            showProgressBar = showProgressBar,
+                                            pillBottomMarginDp = pillBottomMargin,
+                                            pillCollapsedWidthDp = pillCollapsedWidth,
+                                            startPageBranding = startPageBranding,
+                                            scrimDarkness = scrimDarkness,
+                                            pillBlurOpacity = pillBlurOpacity,
+                                            contentCornerRadius = contentCornerRadius,
+                                            contentPadding = contentPadding,
+                                            contentBottomPadding = 8,
+                                            modifier = Modifier.fillMaxSize(),
+                                            stickerContent = {
+                                                val stickersEnabled by viewModel.stickersEnabled.collectAsStateWithLifecycle(initialValue = true)
+                                                val activeTab = tabs.getOrNull(activeTabIndex)
+                                                val isStartPage = activeTab?.url == "about:blank" || activeTab?.url?.isEmpty() == true
+                                                if (stickersEnabled && currentScreen == Screen.BROWSER && !isMultiView && isStartPage) {
+                                                    BoxWithConstraints(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .pointerInput(Unit) {
+                                                                detectTapGestures {
+                                                                    viewModel.setSelectedStickerId(null)
                                                                 }
-                                                            },
-                                                            onDelete = {
-                                                                viewModel.removeSticker(sticker.id)
                                                             }
-                                                        )
+                                                    ) {
+                                                        val sWidth = maxWidth.value
+                                                        val sHeight = maxHeight.value
+                                                        stickers.forEach { sticker ->
+                                                            TransformableSticker(
+                                                                sticker = sticker,
+                                                                isSelected = selectedStickerId == sticker.id,
+                                                                screenWidth = sWidth,
+                                                                screenHeight = sHeight,
+                                                                onTransform = { x, y, w, h, r ->
+                                                                    viewModel.updateStickerTransform(sticker.id, x, y, w, h, r)
+                                                                },
+                                                                onClick = {
+                                                                    viewModel.setSelectedStickerId(sticker.id)
+                                                                    sticker.link?.let { link ->
+                                                                        viewModel.navigateToUrlByTabId(activeTab?.id ?: "", link)
+                                                                    }
+                                                                },
+                                                                onDelete = {
+                                                                    viewModel.removeSticker(sticker.id)
+                                                                }
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
-
-                            // Floating Bottom Tab Bar Overlay
-                            val isKeyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-                            if (!isMultiView && !isKeyboardVisible) {
-                                Column(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .navigationBarsPadding()
-                                ) {
-                                    val activeGroupId by viewModel.activeGroupId.collectAsStateWithLifecycle()
-                                    
-                                    // Secondary Tab Bar for Group Children
-                                    if (activeGroupId != null) {
-                                        val groupChildrenCount = tabs.count { it.parentGroupId == activeGroupId }
-                                        if (groupChildrenCount > 0) {
-                                            Box(
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                BottomTabBar(
-                                                    tabs = tabs,
-                                                    activeTabId = tabs.getOrNull(activeTabIndex)?.id ?: "",
-                                                    onTabSelected = { index ->
-                                                        viewModel.switchTab(index)
-                                                    },
-                                                    onTabClosed = { index -> viewModel.closeTab(index) },
-                                                    onNewTab = { containerId ->
-                                                        val currentGroupId = activeGroupId
-                                                        viewModel.createNewTab(containerId = containerId)
-                                                        val newTabIndex = tabs.lastIndex
-                                                        if (newTabIndex >= 0 && currentGroupId != null) {
-                                                             viewModel.groupTabs(tabs[newTabIndex].id, currentGroupId)
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (isMultiView) {
+                                    FreeformWorkspace(
+                                        viewModel = viewModel,
+                                        tabs = tabs,
+                                        modifier = Modifier.fillMaxSize().padding(paddingValues)
+                                    )
+                                } else {
+                                    if (activeTabIndex in tabs.indices) {
+                                        AddressBarWithGeckoView(
+                                            viewModel = viewModel,
+                                            tab = tabs.getOrNull(activeTabIndex),
+                                            onOpenAirlockGallery = { openAirlockGallery() },
+                                            alwaysShowUrl = alwaysShowUrl,
+                                            reduceAnim = reduceAnim,
+                                            showProgressBar = showProgressBar,
+                                            pillBottomMarginDp = pillBottomMargin,
+                                            pillCollapsedWidthDp = pillCollapsedWidth,
+                                            startPageBranding = startPageBranding,
+                                            scrimDarkness = scrimDarkness,
+                                            pillBlurOpacity = pillBlurOpacity,
+                                            contentCornerRadius = contentCornerRadius,
+                                            contentPadding = contentPadding,
+                                            modifier = Modifier.fillMaxSize(),
+                                            stickerContent = {
+                                                val stickersEnabled by viewModel.stickersEnabled.collectAsStateWithLifecycle(initialValue = true)
+                                                val activeTab = tabs.getOrNull(activeTabIndex)
+                                                val isStartPage = activeTab?.url == "about:blank" || activeTab?.url?.isEmpty() == true
+                                                if (stickersEnabled && currentScreen == Screen.BROWSER && !isMultiView && isStartPage) {
+                                                    BoxWithConstraints(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .pointerInput(Unit) {
+                                                                detectTapGestures {
+                                                                    viewModel.setSelectedStickerId(null)
+                                                                }
+                                                            }
+                                                    ) {
+                                                        val sWidth = maxWidth.value
+                                                        val sHeight = maxHeight.value
+                                                        stickers.forEach { sticker ->
+                                                            TransformableSticker(
+                                                                sticker = sticker,
+                                                                isSelected = selectedStickerId == sticker.id,
+                                                                screenWidth = sWidth,
+                                                                screenHeight = sHeight,
+                                                                onTransform = { x, y, w, h, r ->
+                                                                    viewModel.updateStickerTransform(sticker.id, x, y, w, h, r)
+                                                                },
+                                                                onClick = {
+                                                                    viewModel.setSelectedStickerId(sticker.id)
+                                                                    sticker.link?.let { link ->
+                                                                        viewModel.navigateToUrlByTabId(activeTab?.id ?: "", link)
+                                                                    }
+                                                                },
+                                                                onDelete = {
+                                                                    viewModel.removeSticker(sticker.id)
+                                                                }
+                                                            )
                                                         }
-                                                    },
-                                                    onGroupTabs = { draggedId, targetId -> 
-                                                        viewModel.groupTabs(draggedId, targetId) 
-                                                    },
-                                                    onUngroupTab = { tabId -> viewModel.ungroupTab(tabId) },
-                                                    groupIdToShow = activeGroupId,
-                                                    showIcons = showTabIcons,
-                                                    showNewTabButton = false,
-                                                    chipHeight = tabChipHeight,
-                                                    activeStyle = activeTabStyle
-                                                )
-                                                
-                                                // Close Group Button Overlay
-                                                IconButton(
-                                                    onClick = { viewModel.openTabGroup(null) },
-                                                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
-                                                ) {
-                                                    Icon(JusBrowseIcons.Close, contentDescription = "Close Group")
+                                                    }
                                                 }
                                             }
-                                        } else {
-                                            // Handle edge case where group is empty but somehow still active
-                                            viewModel.openTabGroup(null)
-                                        }
+                                        )
                                     }
-
-                                    // Primary Tab Bar
-                                    BottomTabBar(
-                                        tabs = tabs,
-                                        activeTabId = tabs.getOrNull(activeTabIndex)?.id ?: "",
-                                        onTabSelected = { index ->
-                                            val tab = tabs.getOrNull(index)
-                                            if (tab?.isGroupMaster == true) {
-                                                viewModel.switchTab(index) // Switch explicitly to master tab when clicked
-                                                if (activeGroupId == tab.id) {
-                                                    viewModel.openTabGroup(null) // Toggle off
-                                                } else {
-                                                    viewModel.openTabGroup(tab.id) // Toggle on
+                                }
+                                val isKeyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+                                if (!isMultiView && !isKeyboardVisible) {
+                                    Column(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .navigationBarsPadding()
+                                    ) {
+                                        val activeGroupId by viewModel.activeGroupId.collectAsStateWithLifecycle()
+                                        if (activeGroupId != null) {
+                                            val groupChildrenCount = tabs.count { it.parentGroupId == activeGroupId }
+                                            if (groupChildrenCount > 0) {
+                                                Box(modifier = Modifier.fillMaxWidth()) {
+                                                    BottomTabBar(
+                                                        tabs = tabs,
+                                                        activeTabId = tabs.getOrNull(activeTabIndex)?.id ?: "",
+                                                        onTabSelected = { index -> viewModel.switchTab(index) },
+                                                        onTabClosed = { index -> viewModel.closeTab(index) },
+                                                        onNewTab = { containerId ->
+                                                            val currentGroupId = activeGroupId
+                                                            viewModel.createNewTab(containerId = containerId)
+                                                            val newTabIndex = tabs.lastIndex
+                                                            if (newTabIndex >= 0 && currentGroupId != null) {
+                                                                viewModel.groupTabs(tabs[newTabIndex].id, currentGroupId)
+                                                            }
+                                                        },
+                                                        onGroupTabs = { draggedId, targetId -> viewModel.groupTabs(draggedId, targetId) },
+                                                        onUngroupTab = { tabId -> viewModel.ungroupTab(tabId) },
+                                                        groupIdToShow = activeGroupId,
+                                                        showIcons = showTabIcons,
+                                                        showNewTabButton = false,
+                                                        chipHeight = tabChipHeight,
+                                                        activeStyle = activeTabStyle
+                                                    )
+                                                    IconButton(
+                                                        onClick = { viewModel.openTabGroup(null) },
+                                                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
+                                                    ) {
+                                                        Icon(JusBrowseIcons.Close, contentDescription = "Close Group")
+                                                    }
                                                 }
                                             } else {
-                                                viewModel.switchTab(index) 
+                                                viewModel.openTabGroup(null)
                                             }
-                                        },
-                                        onTabClosed = { index -> viewModel.closeTab(index) },
-                                        onNewTab = { containerId -> viewModel.createNewTab(containerId = containerId) },
-                                        onGroupTabs = { draggedId, targetId -> 
-                                            viewModel.groupTabs(draggedId, targetId) 
-                                        },
-                                        onUngroupTab = { tabId -> viewModel.ungroupTab(tabId) },
-                                        onOpenTabGroup = { viewModel.openTabGroup(it) },
-                                        activeGroupId = activeGroupId,
-                                        showIcons = showTabIcons,
-                                        chipHeight = tabChipHeight,
-                                        activeStyle = activeTabStyle,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                        }
+                                        BottomTabBar(
+                                            tabs = tabs,
+                                            activeTabId = tabs.getOrNull(activeTabIndex)?.id ?: "",
+                                            onTabSelected = { index ->
+                                                val tab = tabs.getOrNull(index)
+                                                if (tab?.isGroupMaster == true) {
+                                                    viewModel.switchTab(index)
+                                                    if (activeGroupId == tab.id) {
+                                                        viewModel.openTabGroup(null)
+                                                    } else {
+                                                        viewModel.openTabGroup(tab.id)
+                                                    }
+                                                } else {
+                                                    viewModel.switchTab(index)
+                                                }
+                                            },
+                                            onTabClosed = { index -> viewModel.closeTab(index) },
+                                            onNewTab = { containerId -> viewModel.createNewTab(containerId = containerId) },
+                                            onGroupTabs = { draggedId, targetId -> viewModel.groupTabs(draggedId, targetId) },
+                                            onUngroupTab = { tabId -> viewModel.ungroupTab(tabId) },
+                                            onOpenTabGroup = { viewModel.openTabGroup(it) },
+                                            activeGroupId = activeGroupId,
+                                            showIcons = showTabIcons,
+                                            chipHeight = tabChipHeight,
+                                            activeStyle = activeTabStyle,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         }
