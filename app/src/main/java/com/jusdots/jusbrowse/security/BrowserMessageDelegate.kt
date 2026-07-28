@@ -47,15 +47,6 @@ class BrowserMessageDelegate(private val context: android.content.Context) : Web
             }
         }
 
-        // Watch for Ad Block from preferences
-        portScope.launch {
-            prefs.adBlockEnabled.collect { enabled ->
-                Log.d("BrowserMessageDelegate", "AdBlock Toggle Sent: $enabled")
-                val msg = JSONObject().put("type", "set_adblock").put("enabled", enabled)
-                port.postMessage(msg)
-            }
-        }
-
         port.setDelegate(object : WebExtension.PortDelegate {
             override fun onPortMessage(message: Any, port: WebExtension.Port) {
                 // Defensive: GeckoView sometimes returns Map instead of JSONObject

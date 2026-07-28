@@ -72,6 +72,26 @@ import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
 import androidx.core.content.ContextCompat
 import java.io.File
+import org.mozilla.geckoview.WebExtension
+
+sealed interface PillPopup {
+    data class Download(
+        val fileName: String,
+        val warningMessage: String?,
+        val url: String,
+        val vtApiKey: String,
+        val koodousApiKey: String,
+    ) : PillPopup
+    data class ScanResult(val message: String) : PillPopup
+    data class ExtensionInstall(
+        val extensionName: String,
+        val extensionVersion: String,
+        val permissions: List<String>,
+        val origins: List<String>,
+        val onAllow: () -> Unit,
+        val onDeny: () -> Unit,
+    ) : PillPopup
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -142,12 +162,22 @@ fun AddressBarWithGeckoView(
     }
     val session = sessionState.value
 
+    // Pill popup state — drives pill morphing into a squircle popup
+    var pillPopup by remember { mutableStateOf<PillPopup?>(null) }
+
     // System Back Handler
-    BackHandler(showPillMenu || isPillExpanded) {
-        if (showPillMenu) showPillMenu = false
-        else if (isPillExpanded) {
-            isPillExpanded = false
-            focusManager.clearFocus()
+    BackHandler(pillPopup != null || showPillMenu || isPillExpanded) {
+        when {
+            pillPopup != null -> {
+                val p = pillPopup
+                if (p is PillPopup.ExtensionInstall) p.onDeny()
+                pillPopup = null
+            }
+            showPillMenu -> showPillMenu = false
+            isPillExpanded -> {
+                isPillExpanded = false
+                focusManager.clearFocus()
+            }
         }
     }
 
@@ -177,12 +207,8 @@ fun AddressBarWithGeckoView(
         }
     }
 
-    // Download confirmation states
-    var showDownloadWarning by remember { mutableStateOf(false) }
     val vtApiKey by viewModel.virusTotalApiKey.collectAsStateWithLifecycle(initialValue = "")
     val koodousApiKey by viewModel.koodousApiKey.collectAsStateWithLifecycle(initialValue = "")
-    var pendingDownloadInfo by remember { mutableStateOf<com.jusdots.jusbrowse.security.DownloadValidator.DownloadValidationResult?>(null) }
-    var pendingDownloadUrl by remember { mutableStateOf<String?>(null) }
 
     var showTrackerDetails by remember { mutableStateOf(false) }
     val trackers = if (tab != null) viewModel.blockedTrackers[tab.id] ?: emptyList() else emptyList()
@@ -406,9 +432,14 @@ fun AddressBarWithGeckoView(
                     val validation = com.jusdots.jusbrowse.security.DownloadValidator.validateDownload(
                         url, null, contentDisposition, mimeType, contentLength
                     )
-                    pendingDownloadUrl = url
-                    pendingDownloadInfo = validation
-                    showDownloadWarning = true
+                    val fileName = validation.fileName ?: url.substringAfterLast("/").substringBefore("?")
+                    pillPopup = PillPopup.Download(
+                        fileName = fileName,
+                        warningMessage = validation.warningMessage,
+                        url = url,
+                        vtApiKey = vtApiKey,
+                        koodousApiKey = koodousApiKey,
+                    )
                 }
             }
 
@@ -474,10 +505,19 @@ fun AddressBarWithGeckoView(
         }
     }
 
+    // Snap pill offsets to 0 when popup shows — pill must be static during popups
+    LaunchedEffect(pillPopup) {
+        if (pillPopup != null) {
+            pillOffset.snapTo(0f)
+            pillVerticalOffset.snapTo(0f)
+        }
+    }
+
     // Single normalized animation progress for the pill.
-    // Level 0 = collapsed, 1 = expanded (width only), 2 = menu (height + radius).
+    // Level 0 = collapsed, 1 = expanded (width only), 2 = menu, 3 = popup (squircle).
     // One animation clock instead of three independent animateDpAsState calls.
     val pillTargetLevel: Float = when {
+        pillPopup != null -> 3f
         showPillMenu -> 2f
         isPillExpanded -> 1f
         else -> 0f
@@ -492,10 +532,19 @@ fun AddressBarWithGeckoView(
     val collapsedWidth = pillCollapsedWidthDp.dp
     val widthProgress = pillLevel.coerceIn(0f, 1f)
     val menuProgress = ((pillLevel - 1f) / 1f).coerceIn(0f, 1f)
+    val popupProgress = ((pillLevel - 2f) / 1f).coerceIn(0f, 1f)
 
     val animatedPillWidthDp = collapsedWidth + (360.dp - collapsedWidth) * widthProgress
-    val animatedPillHeight = if (pillLevel <= 1f) 56.dp else 56.dp + (580.dp - 56.dp) * menuProgress
-    val animatedCornerRadius = if (pillLevel <= 1f) 28.dp else 28.dp + (32.dp - 28.dp) * menuProgress
+    val animatedPillHeight = when {
+        pillLevel <= 1f -> 56.dp
+        pillLevel <= 2f -> 56.dp + (580.dp - 56.dp) * menuProgress
+        else -> 580.dp - (580.dp - 440.dp) * popupProgress
+    }
+    val animatedCornerRadius = when {
+        pillLevel <= 1f -> 28.dp
+        pillLevel <= 2f -> 28.dp + (32.dp - 28.dp) * menuProgress
+        else -> 32.dp + (40.dp - 32.dp) * popupProgress
+    }
 
     val bottomBarHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { 200.dp.toPx() }
     val bottomBarOffsetHeightPxState by viewModel.bottomBarOffsetHeightPx.collectAsStateWithLifecycle()
@@ -508,7 +557,7 @@ fun AddressBarWithGeckoView(
                     val nestedScrollConnection = remember(isPillExpanded) {
                         object : NestedScrollConnection {
                             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                                if (isPillExpanded) return Offset.Zero
+                                if (isPillExpanded || pillPopup != null) return Offset.Zero
                                 val delta = available.y
                                 val newOffset = bottomBarOffsetHeightPxState + (-delta)
                                 viewModel.updateBottomBarOffset(newOffset.coerceIn(0f, bottomBarHeightPx))
@@ -640,15 +689,20 @@ fun AddressBarWithGeckoView(
             "dark" -> 0.9f
             else -> 0.7f
         }
-        if (isPillExpanded || showPillMenu) {
+        if (isPillExpanded || showPillMenu || pillPopup != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(if (showPillMenu) Color.Black.copy(alpha = scrimAlpha) else Color.Transparent)
+                    .background(if (showPillMenu || pillPopup != null) Color.Black.copy(alpha = scrimAlpha) else Color.Transparent)
                     .clickable(
                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         indication = null
                     ) {
+                        if (pillPopup != null) {
+                            val p = pillPopup
+                            if (p is PillPopup.ExtensionInstall) p.onDeny()
+                            pillPopup = null
+                        }
                         isPillExpanded = false
                         showPillMenu = false
                         focusManager.clearFocus()
@@ -656,76 +710,38 @@ fun AddressBarWithGeckoView(
             )
         }
         
-        // --- DIALOGS ---
-        // Download Confirmation Dialog with Scan buttons
-        val localDownloadInfo = pendingDownloadInfo
-        if (showDownloadWarning && localDownloadInfo != null) {
-
-            fun clearDownloadState() {
-                showDownloadWarning = false
-                pendingDownloadInfo = null
-                pendingDownloadUrl = null
-            }
-
-            AlertDialog(
-                onDismissRequest = { clearDownloadState() },
-                title = { Text("Download File") },
-                text = {
-                    Column {
-                        Text(localDownloadInfo.warningMessage ?: "Do you want to download this file?")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = localDownloadInfo.fileName,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+        // Extension install popup — triggered from WebExtension install delegate
+        val pendingInstall = com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value
+        if (pendingInstall != null && pillPopup !is PillPopup.ExtensionInstall) {
+            var installHandled = false
+            pillPopup = PillPopup.ExtensionInstall(
+                extensionName = pendingInstall.extensionName,
+                extensionVersion = pendingInstall.extensionVersion,
+                permissions = pendingInstall.permissions,
+                origins = pendingInstall.origins,
+                onAllow = {
+                    if (!installHandled) {
+                        installHandled = true
+                        pendingInstall.result.complete(WebExtension.PermissionPromptResponse(true, true, true))
+                        com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value = null
+                        pillPopup = null
                     }
                 },
-                confirmButton = {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Button(
-                            onClick = {
-                                pendingDownloadUrl?.let { url: String ->
-                                    viewModel.startDownload(context, url, localDownloadInfo.fileName)
-                                }
-                                clearDownloadState()
-                            }
-                        ) {
-                            Text("Download")
-                        }
-
-                        if (vtApiKey.isNotBlank()) {
-                            TextButton(onClick = {
-                                pendingDownloadUrl?.let { url ->
-                                    viewModel.scanFile(url, "VirusTotal", context)
-                                }
-                                clearDownloadState()
-                            }) {
-                                Text("Scan with VirusTotal")
-                            }
-                        }
-
-                        if (koodousApiKey.isNotBlank()) {
-                            TextButton(onClick = {
-                                pendingDownloadUrl?.let { url ->
-                                    viewModel.scanFile(url, "Koodous", context)
-                                }
-                                clearDownloadState()
-                            }) {
-                                Text("Scan with Koodous")
-                            }
-                        }
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { clearDownloadState() }) {
-                        Text("Cancel")
+                onDeny = {
+                    if (!installHandled) {
+                        installHandled = true
+                        pendingInstall.result.complete(WebExtension.PermissionPromptResponse(false, false, false))
+                        com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value = null
+                        pillPopup = null
                     }
                 }
             )
         }
 
-        // --- END DIALOGS ---
+        // Scan result — drive pill popup from ViewModel state
+        if (viewModel.showScanResultDialog && pillPopup == null) {
+            pillPopup = PillPopup.ScanResult(message = viewModel.scanResultMessage)
+        }
 
 
         stickerContent()
@@ -812,8 +828,8 @@ fun AddressBarWithGeckoView(
                         }
                     }
                 }
-                .pointerInput(showPillMenu, isPillExpanded) {
-                    if (showPillMenu) {
+                .pointerInput(showPillMenu, isPillExpanded, pillPopup) {
+                    if (showPillMenu && pillPopup == null) {
                         detectDragGestures(
                             onDrag = { change, dragAmount ->
                                 change.consume()
@@ -828,7 +844,7 @@ fun AddressBarWithGeckoView(
                                 }
                             }
                         )
-                    } else if (!isPillExpanded) {
+                    } else if (!isPillExpanded && !showPillMenu && pillPopup == null) {
                         detectDragGestures(
                             onDragEnd = {
                                 val hOffset = pillOffset.value
@@ -899,8 +915,14 @@ fun AddressBarWithGeckoView(
             )
 
             Box(modifier = Modifier.fillMaxSize()) {
+                val pillContentKey = when {
+                    pillPopup != null -> 3
+                    showPillMenu -> 2
+                    isPillExpanded -> 1
+                    else -> 0
+                }
                 AnimatedContent(
-                    targetState = showPillMenu,
+                    targetState = pillContentKey,
                     transitionSpec = {
                         if (reduceAnim) {
                             fadeIn(tween(0)) togetherWith fadeOut(tween(0))
@@ -910,9 +932,14 @@ fun AddressBarWithGeckoView(
                         }
                     },
                     label = "pillContent"
-                ) { isMenuOpen ->
-                    if (isMenuOpen) {
-                        // ── Full JusBrowse Menu ──
+                ) { contentState ->
+                    when (contentState) {
+                        3 -> {
+                            // ── Pill Popup Content ──
+                            PillPopupContent(pillPopup = pillPopup, vtApiKey = vtApiKey, koodousApiKey = koodousApiKey, onDismiss = { pillPopup = null }, viewModel = viewModel, context = context)
+                        }
+                        2 -> {
+                            // ── Full JusBrowse Menu ──
                         Column(
                             modifier = Modifier.fillMaxSize().padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -1056,7 +1083,8 @@ fun AddressBarWithGeckoView(
                                 }
                             }
                         }
-                    } else {
+                        }
+                        else -> {
                         // ── Address Bar / URL Content ─────────────────
                         if (isPillExpanded) {
                             Row(
@@ -1225,19 +1253,8 @@ fun AddressBarWithGeckoView(
             }
         }
 
-        // Scan Result Dialog
-        if (viewModel.showScanResultDialog) {
-            AlertDialog(
-                onDismissRequest = { viewModel.showScanResultDialog = false },
-                title = { Text("Scan Result") },
-                text = { Text(viewModel.scanResultMessage) },
-                confirmButton = {
-                    TextButton(onClick = { viewModel.showScanResultDialog = false }) {
-                        Text("OK")
-                    }
-                }
-            )
-        }
+        // Scan result dismissal — handled via pillPopup dismiss
+        // (popup content is driven by viewModel.showScanResultDialog in the scan result popup branch)
 
         // Drop Zone Overlay for Downloads
         if (isDragging) {
@@ -1326,9 +1343,114 @@ fun AddressBarWithGeckoView(
     }
 }
 
+}
 
-
-
+@Composable
+private fun PillPopupContent(
+    pillPopup: PillPopup?,
+    vtApiKey: String,
+    koodousApiKey: String,
+    onDismiss: () -> Unit,
+    viewModel: BrowserViewModel,
+    context: android.content.Context,
+) {
+    val consumeOverscroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset = available
+        }
+    }
+    when (val popup = pillPopup) {
+        is PillPopup.Download -> {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Download File", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .nestedScroll(consumeOverscroll)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(popup.warningMessage ?: "Do you want to download this file?", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(popup.fileName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
+                Button(
+                    onClick = {
+                        viewModel.startDownload(context, popup.url, popup.fileName)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Download") }
+                if (popup.vtApiKey.isNotBlank()) {
+                    TextButton(
+                        onClick = {
+                            viewModel.scanFile(popup.url, "VirusTotal", context)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Scan with VirusTotal") }
+                }
+                if (popup.koodousApiKey.isNotBlank()) {
+                    TextButton(
+                        onClick = {
+                            viewModel.scanFile(popup.url, "Koodous", context)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Scan with Koodous") }
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+            }
+        }
+        is PillPopup.ExtensionInstall -> {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Add Extension", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                Text("${popup.extensionName} v${popup.extensionVersion} requests permission to:", style = MaterialTheme.typography.bodyMedium)
+                Column(modifier = Modifier.weight(1f).nestedScroll(consumeOverscroll).verticalScroll(rememberScrollState())) {
+                    if (popup.permissions.isNotEmpty()) {
+                        Text("Permissions:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        popup.permissions.forEach { perm ->
+                            Text("  • $perm", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    if (popup.origins.isNotEmpty()) {
+                        Text("Access to:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        popup.origins.forEach { origin ->
+                            Text("  • $origin", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                Button(onClick = popup.onAllow, modifier = Modifier.fillMaxWidth()) { Text("Add") }
+                TextButton(onClick = popup.onDeny, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+            }
+        }
+        is PillPopup.ScanResult -> {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Scan Result", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                Column(modifier = Modifier.weight(1f).nestedScroll(consumeOverscroll).verticalScroll(rememberScrollState())) {
+                    Text(popup.message, style = MaterialTheme.typography.bodyMedium)
+                }
+                Button(onClick = { viewModel.showScanResultDialog = false; onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text("OK") }
+            }
+        }
+        null -> {}
+    }
+}
 
 @Composable
 private fun StartPageHero(branding: String = "full") {

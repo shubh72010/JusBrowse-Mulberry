@@ -91,7 +91,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     val searchEngine: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.SEARCH_ENGINE] ?: "DuckDuckGo"
+        preferences[PreferenceKeys.SEARCH_ENGINE] ?: "Brave"
     }
 
     val homePage: Flow<String> = context.dataStore.data.map { preferences ->
@@ -129,7 +129,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     val flagSecureEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.FLAG_SECURE_ENABLED] ?: true
+        preferences[PreferenceKeys.FLAG_SECURE_ENABLED] ?: false
     }
 
     val cookieBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -145,7 +145,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     val themePreset: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.THEME_PRESET] ?: "SYSTEM"
+        preferences[PreferenceKeys.THEME_PRESET] ?: "MINT_FRESH"
     }
 
     val customThemeColor: Flow<String> = context.dataStore.data.map { preferences ->
@@ -308,7 +308,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     val amoledBlackEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.AMOLED_BLACK_ENABLED] ?: false
+        preferences[PreferenceKeys.AMOLED_BLACK_ENABLED] ?: true
     }
 
 
@@ -352,7 +352,7 @@ class PreferencesRepository(private val context: Context) {
     }
 
     val backgroundPreset: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferenceKeys.BACKGROUND_PRESET] ?: "NONE"
+        preferences[PreferenceKeys.BACKGROUND_PRESET] ?: "WALLPAPER_GREEN2"
     }
 
     suspend fun setMultiMediaPlaybackEnabled(enabled: Boolean) {

@@ -41,7 +41,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.jusdots.jusbrowse.lifecycle.TabLifecycleState
-import com.jusdots.jusbrowse.security.ContentBlocker
 import kotlinx.coroutines.*
 import java.util.UUID
 import android.content.Context
@@ -75,7 +74,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val downloadRepository = DownloadRepository(database.downloadDao())
     private val preferencesRepository = PreferencesRepository(application)
     val siteSettingsRepository = SiteSettingsRepository(database.siteSettingsDao())
-    private val contentBlocker = ContentBlocker(application)
 
     // Layer 12 Memory Stabilization
     private val _passiveTabIds = mutableStateMapOf<String, Boolean>()
@@ -261,7 +259,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     )
 
     data class BrowserSearchPrefs(
-        val searchEngine: String = "DuckDuckGo",
+        val searchEngine: String = "Brave",
         val customSearchEngineUrl: String = ""
     )
 
@@ -380,7 +378,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         
         viewModelScope.launch {
             customDohUrl.collect { url ->
-                contentBlocker.customDohUrl = url
                 if (url.isNotBlank()) {
                     com.jusdots.jusbrowse.BrowserApplication.runtime?.settings?.setTrustedRecursiveResolverUri(url)
                 }
@@ -1490,6 +1487,8 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun setAdBlockEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setAdBlockEnabled(enabled)
+            val extMan = com.jusdots.jusbrowse.BrowserApplication.extensionManager
+            extMan?.setEnabled("jusbrowse-ublock-origin@jusdots.com", enabled)
         }
     }
 

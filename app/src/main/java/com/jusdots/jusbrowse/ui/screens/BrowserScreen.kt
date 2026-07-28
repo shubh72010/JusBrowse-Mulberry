@@ -41,7 +41,6 @@ import com.jusdots.jusbrowse.BuildConfig
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.viewinterop.AndroidView
 
-import org.mozilla.geckoview.WebExtension
 import android.content.Intent
 import com.jusdots.jusbrowse.utils.UpdateInfo
 
@@ -447,45 +446,6 @@ fun BrowserScreen(
                             )
                         }
                     }
-                }
-
-                // Extension Install Permission Dialog
-                val pendingInstall = com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value
-                if (pendingInstall != null) {
-                    var installHandled by remember { mutableStateOf(false) }
-                    fun completeInstall(allow: Boolean) {
-                        if (installHandled) return
-                        installHandled = true
-                        pendingInstall.result.complete(WebExtension.PermissionPromptResponse(allow, allow, allow))
-                        com.jusdots.jusbrowse.BrowserApplication.pendingExtensionInstall.value = null
-                    }
-                    AlertDialog(
-                        onDismissRequest = { completeInstall(false) },
-                        title = { Text("Add Extension") },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("${pendingInstall.extensionName} v${pendingInstall.extensionVersion} requests permission to:")
-                                if (pendingInstall.permissions.isNotEmpty()) {
-                                    Text("Permissions:", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                    pendingInstall.permissions.forEach { perm ->
-                                        Text("  • $perm", style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                                if (pendingInstall.origins.isNotEmpty()) {
-                                    Text("Access to:", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                    pendingInstall.origins.forEach { origin ->
-                                        Text("  • $origin", style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { completeInstall(true) }) { Text("Add") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { completeInstall(false) }) { Text("Cancel") }
-                        }
-                    )
                 }
 
                 // Global Overlays

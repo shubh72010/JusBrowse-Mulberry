@@ -148,18 +148,15 @@ class BrowserApplication : Application() {
                     val delegate = BrowserMessageDelegate(this)
                     extension.setMessageDelegate(delegate, "jusbrowse")
                 }
-                // Third-party extensions must not receive the built-in extension's
-                // privileged native-message namespace.
-                appScope.launch {
-                    extMan.reinstallPersistedExtensions()
-                }
             }, { exception ->
-                Log.e("BrowserApp", "Failed to register WebExtension", exception)
-                // Still try to re-register even if built-in fails
-                appScope.launch {
-                    extMan.reinstallPersistedExtensions()
-                }
+                Log.e("BrowserApp", "Failed to register jusbrowse-privacy", exception)
             })
+
+            // Third-party extensions must not receive the built-in extension's
+            // privileged native-message namespace.
+            appScope.launch {
+                extMan.reinstallPersistedExtensions()
+            }
         }
     }
 }
