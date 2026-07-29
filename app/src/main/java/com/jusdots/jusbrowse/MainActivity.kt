@@ -42,13 +42,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var downloadReceiver: DownloadReceiver
     private lateinit var viewModel: BrowserViewModel
 
-    // Fallback: holds the pending GeckoResult for an in-flight WebAuthn/FIDO2 request
-    // via the legacy GeckoRuntime.ActivityDelegate path. This is kept as a fallback
-    // for any calls that the WebExtension bridge doesn't intercept.
+    // Holds the pending GeckoResult for an in-flight WebAuthn/FIDO2 request via
+    // GeckoRuntime.ActivityDelegate. GeckoView handles the WebAuthn protocol internally
+    // and delegates to Android Credential Manager through this PendingIntent bridge.
     private var pendingWebAuthnResult: GeckoResult<Intent>? = null
 
-    // Legacy FIDO2 onActivityResult — kept as fallback for any WebAuthn calls that
-    // bypass the WebExtension bridge (e.g. iframes without content script injection).
+    // Bridges GeckoView's native WebAuthn PendingIntent result back to the engine.
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -94,12 +93,12 @@ class MainActivity : ComponentActivity() {
         viewModel = androidx.lifecycle.ViewModelProvider(this)[BrowserViewModel::class.java]
         handleIntent(intent)
 
-        // Register this Activity for GeckoView's native WebAuthn/passkey operations.
         BrowserApplication.setCurrentActivity(this)
 
-        // Fallback: legacy GeckoRuntime.ActivityDelegate for WebAuthn requests that the
-        // WebExtension bridge doesn't intercept. This uses the deprecated FIDO2 API path.
-        // The WebExtension bridge is the primary path for passkey support.
+        // GeckoView native WebAuthn/passkey bridge.
+        // GeckoView handles the FIDO2/WebAuthn protocol internally and produces a
+        // PendingIntent that starts Android Credential Manager. The result is returned
+        // via onActivityResult and fed back to the engine to complete the WebAuthn flow.
         BrowserApplication.runtime?.activityDelegate = object : GeckoRuntime.ActivityDelegate {
             override fun onStartActivityForResult(pendingIntent: PendingIntent): GeckoResult<Intent> {
                 val result = GeckoResult<Intent>()

@@ -98,7 +98,6 @@ browser.webRequest.onBeforeRequest.addListener(
 );
 
 let appPort = null;
-const pendingWebAuthn = new Map();
 
 function handlePortMessage(message) {
     if (message.type === "extract_media") {
@@ -112,12 +111,6 @@ function handlePortMessage(message) {
                 }).catch(() => {});
             });
         });
-    } else if (message.type === "webauthn_result") {
-        const resolver = pendingWebAuthn.get(message.requestId);
-        if (resolver) {
-            pendingWebAuthn.delete(message.requestId);
-            resolver({ result: message.result, error: message.error, errorType: message.errorType });
-        }
     }
 }
 
@@ -134,33 +127,6 @@ function connectToNative() {
     }
 }
 connectToNative();
-
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === "webauthn_request") {
-        if (!appPort) {
-            sendResponse({ error: "Native bridge not connected", errorType: "NetworkError" });
-            return true;
-        }
-        const requestId = message.requestId;
-        pendingWebAuthn.set(requestId, sendResponse);
-
-        let origin = "";
-        if (sender && sender.url) {
-            try {
-                const url = new URL(sender.url);
-                origin = url.origin;
-            } catch (e) {}
-        }
-        appPort.postMessage({
-            type: "webauthn_request",
-            subType: message.subType,
-            requestId: requestId,
-            clientDataHash: message.clientDataHash || "",
-            publicKey: message.publicKey
-        });
-        return true;
-    }
-});
 
 async function handleMediaExtraction() {
     try {

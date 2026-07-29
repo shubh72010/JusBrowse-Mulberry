@@ -7,12 +7,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.MutableState
 import androidx.room.Room
 import com.jusdots.jusbrowse.data.database.BrowserDatabase
+import com.jusdots.jusbrowse.data.repository.PreferencesRepository
 import com.jusdots.jusbrowse.security.BrowserMessageDelegate
 import com.jusdots.jusbrowse.security.ExtensionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
@@ -86,11 +89,17 @@ class BrowserApplication : Application() {
         }
 
         if (currentProcessName == packageName) {
+            val protectionLevel = runBlocking {
+                PreferencesRepository(this@BrowserApplication).protectionLevel.first()
+            }
+            val etpLevel = when (protectionLevel) {
+                "strict" -> ContentBlocking.EtpLevel.STRICT
+                else -> ContentBlocking.EtpLevel.DEFAULT
+            }
             val contentBlocking = ContentBlocking.Settings.Builder()
                 .cookieBehavior(ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS)
-                .enhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.STRICT)
+                .enhancedTrackingProtectionLevel(etpLevel)
                 .safeBrowsing(ContentBlocking.SafeBrowsing.DEFAULT)
-                .cookiePurging(true)
                 .build()
 
             val settings = GeckoRuntimeSettings.Builder()

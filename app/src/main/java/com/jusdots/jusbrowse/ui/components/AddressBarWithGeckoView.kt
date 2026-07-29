@@ -120,6 +120,7 @@ fun AddressBarWithGeckoView(
     val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle(initialValue = "DuckDuckGo")
     val customSearchEngineUrl by viewModel.customSearchEngineUrl.collectAsStateWithLifecycle(initialValue = "")
     val protectionWhitelist by viewModel.protectionWhitelist.collectAsStateWithLifecycle(initialValue = "")
+    val popupBlockerEnabled by viewModel.popupBlockerEnabled.collectAsStateWithLifecycle(initialValue = true)
 
     // PILL BAR STATES (Preserved from original)
     var isPillExpanded by remember { mutableStateOf(false) }
@@ -353,7 +354,7 @@ fun AddressBarWithGeckoView(
     }
 
     // GeckoSession Delegates Setup
-    DisposableEffect(session) {
+    DisposableEffect(session, popupBlockerEnabled) {
         if (session != null) {
             val progressDelegate = object : GeckoSession.ProgressDelegate {
                 override fun onPageStart(session: GeckoSession, url: String) {
@@ -403,6 +404,17 @@ fun AddressBarWithGeckoView(
                 override fun onCanGoForward(session: GeckoSession, canForward: Boolean) {
                     canGoForward = canForward
                     viewModel.updateTabNavigationState(tabIndex, canGoBack, canGoForward)
+                }
+
+                override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession> {
+                    val isPrivate = session.settings.getUsePrivateMode()
+                    val containerId = session.settings.getContextId()
+                    val jsEnabled = session.settings.getAllowJavascript()
+                    val newSession = viewModel.handleNewSession(uri, isPrivate, containerId, jsEnabled)
+                    if (newSession != null) {
+                        return GeckoResult.fromValue(newSession)
+                    }
+                    return GeckoResult.fromValue(GeckoSession())
                 }
             }
 
@@ -479,6 +491,24 @@ fun AddressBarWithGeckoView(
                     }
                     
                     return promise
+                }
+
+                override fun onPopupPrompt(
+                    session: GeckoSession,
+                    prompt: GeckoSession.PromptDelegate.PopupPrompt
+                ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {
+                    return if (popupBlockerEnabled) {
+                        GeckoResult.fromValue(prompt.confirm(org.mozilla.geckoview.AllowOrDeny.DENY))
+                    } else {
+                        GeckoResult.fromValue(prompt.confirm(org.mozilla.geckoview.AllowOrDeny.ALLOW))
+                    }
+                }
+
+                override fun onRedirectPrompt(
+                    session: GeckoSession,
+                    prompt: GeckoSession.PromptDelegate.RedirectPrompt
+                ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {
+                    return GeckoResult.fromValue(prompt.confirm(org.mozilla.geckoview.AllowOrDeny.ALLOW))
                 }
             }
 

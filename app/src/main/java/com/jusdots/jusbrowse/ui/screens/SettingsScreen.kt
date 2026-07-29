@@ -102,6 +102,7 @@ fun SettingsScreen(
     val httpsOnly by viewModel.httpsOnly.collectAsStateWithLifecycle(initialValue = true)
     val cookieBlockerEnabled by viewModel.cookieBlockerEnabled.collectAsStateWithLifecycle(initialValue = true)
     val popupBlockerEnabled by viewModel.popupBlockerEnabled.collectAsStateWithLifecycle(initialValue = true)
+    val protectionLevel by viewModel.protectionLevel.collectAsStateWithLifecycle(initialValue = "standard")
 
     var editingSticker by remember { mutableStateOf<Sticker?>(null) }
     var stickerLinkText by remember { mutableStateOf("") }
@@ -502,6 +503,23 @@ fun SettingsScreen(
                 SettingsSwitch(title = "Ad Block", checked = adBlockEnabled, onCheckedChange = { viewModel.setAdBlockEnabled(it) })
                 SettingsSwitch(title = "HTTPS-Only Mode", checked = httpsOnly, onCheckedChange = { viewModel.setHttpsOnly(it) })
                 SettingsSwitch(title = "Cookie Blocker", checked = cookieBlockerEnabled, onCheckedChange = { viewModel.setCookieBlockerEnabled(it) })
+                Text("Protection Level", style = MaterialTheme.typography.bodyLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("standard" to "Standard", "strict" to "Strict").forEach { (key, label) ->
+                        val isSelected = protectionLevel == key
+                        Surface(
+                            onClick = { viewModel.setProtectionLevel(key) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 12.dp)) {
+                                Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    }
+                }
                 SettingsSwitch(title = "Popup Blocker", checked = popupBlockerEnabled, onCheckedChange = { viewModel.setPopupBlockerEnabled(it) })
 
                 var whitelistText by remember(protectionWhitelist) { mutableStateOf(protectionWhitelist) }

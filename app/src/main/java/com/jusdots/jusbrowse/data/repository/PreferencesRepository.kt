@@ -40,6 +40,7 @@ class PreferencesRepository(private val context: Context) {
         val HOME_PAGE = stringPreferencesKey("home_page")
         val JAVASCRIPT_ENABLED = booleanPreferencesKey("javascript_enabled")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
+        val PROTECTION_LEVEL = stringPreferencesKey("protection_level")
         val SAVED_TABS = stringPreferencesKey("saved_tabs")
         val SAVED_WINDOW_STATES = stringPreferencesKey("saved_window_states")
         val ACTIVE_TAB_INDEX = stringPreferencesKey("active_tab_index")
@@ -130,6 +131,10 @@ class PreferencesRepository(private val context: Context) {
 
     val flagSecureEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferenceKeys.FLAG_SECURE_ENABLED] ?: false
+    }
+
+    val protectionLevel: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.PROTECTION_LEVEL] ?: "standard"
     }
 
     val cookieBlockerEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -428,6 +433,12 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setCookieBlockerEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferenceKeys.COOKIE_BLOCKER_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setProtectionLevel(level: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.PROTECTION_LEVEL] = level
         }
     }
 

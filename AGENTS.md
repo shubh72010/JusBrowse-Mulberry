@@ -49,7 +49,7 @@ data/         — models/, database/ (Room DB v9, MIGRATION_7_8, MIGRATION_8_9),
 lifecycle/    — MemoryBudgetController, TabLifecycleManager
 security/     — 23 files: NetworkSurgeon, GhostCookieJar, ContentBlocker, DnsOverHttps,
                 SurgicalBridge, BrowserMessageDelegate, PostBodySanitizer, DownloadValidator,
-                ExtensionManager, GeckoSessionFactory, CredentialManagerHandler, etc.
+                ExtensionManager, GeckoSessionFactory, etc.
 storage/      — CacheDeduplicator, StorageWritePolicyEngine, TabSnapshotStorage
 ui/           — components/ (21 files), screens/ (7), runtime/ (9 — animations, caching, frozen),
                 delegate/, theme/, viewmodel/BrowserViewModel.kt (~1700 lines)

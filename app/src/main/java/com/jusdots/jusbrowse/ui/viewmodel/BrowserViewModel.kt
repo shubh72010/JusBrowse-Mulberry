@@ -212,6 +212,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val adBlockEnabled = preferencesRepository.adBlockEnabled
     val httpsOnly = preferencesRepository.httpsOnly
     val flagSecureEnabled = preferencesRepository.flagSecureEnabled
+    val protectionLevel = preferencesRepository.protectionLevel
     val cookieBlockerEnabled = preferencesRepository.cookieBlockerEnabled
     val popupBlockerEnabled = preferencesRepository.popupBlockerEnabled
     val showTabIcons = preferencesRepository.showTabIcons
@@ -393,11 +394,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                     session.settings.allowJavascript = enabled
                 }
             }
-        }
-        viewModelScope.launch {
-            // popupBlockerEnabled is handled via PromptDelegate.onPopupPrompt
-            // at the per-session level, not via session.settings
-            preferencesRepository.popupBlockerEnabled.collect { /* no-op: handled at PromptDelegate level */ }
         }
         viewModelScope.launch {
             preferencesRepository.httpsOnly.collect { enabled ->
@@ -918,6 +914,49 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         saveSession()
 
         applyDesktopModeToSession(newTabId)
+    }
+
+    fun handleNewSession(url: String, isPrivate: Boolean, containerId: String?, javascriptEnabled: Boolean): org.mozilla.geckoview.GeckoSession? {
+        val newTabId = UUID.randomUUID().toString()
+        val isDesktop = _cachedDesktopMode
+        val newTab = BrowserTab(
+            id = newTabId,
+            url = url,
+            isPrivate = isPrivate,
+            containerId = containerId ?: "default",
+            isDesktopMode = isDesktop
+        )
+        val descriptor = newTab.toDescriptor()
+        val insertIndex = if (_cachedNewTabPosition == "after_current") {
+            val currentIdx = _tabDescriptors.indexOfFirst { it.id == _activeTabId.value }
+            if (currentIdx >= 0) currentIdx + 1 else _tabDescriptors.size
+        } else {
+            _tabDescriptors.size
+        }
+        if (insertIndex in 0.._tabDescriptors.size) {
+            _tabDescriptors.add(insertIndex, descriptor)
+        } else {
+            _tabDescriptors.add(descriptor)
+        }
+
+        val offset = (_tabDescriptors.size * 20).toFloat()
+        tabWindowStates[newTabId] = TabWindowState(x = offset, y = offset, zIndex = (_tabDescriptors.size).toFloat())
+        saveSession()
+
+        val settings = org.mozilla.geckoview.GeckoSessionSettings.Builder()
+            .usePrivateMode(isPrivate)
+            .useTrackingProtection(true)
+            .contextId(containerId)
+            .allowJavascript(javascriptEnabled)
+            .build()
+        val session = org.mozilla.geckoview.GeckoSession(settings)
+        geckoSessionPool[newTabId] = session
+        _passiveTabIds[newTabId] = false
+        viewModelScope.launch {
+            strait.registerTab(newTab, session)
+            applyDesktopModeToSession(newTabId)
+        }
+        return session
     }
 
     // Tab Group Operations
@@ -1475,6 +1514,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun setCookieBlockerEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setCookieBlockerEnabled(enabled)
+        }
+    }
+
+    fun setProtectionLevel(level: String) {
+        viewModelScope.launch {
+            preferencesRepository.setProtectionLevel(level)
         }
     }
 
