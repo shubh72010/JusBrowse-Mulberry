@@ -1,4 +1,4 @@
-From 21b6efdcb9716292ff78237ca4fc6950d95bdb91 Mon Sep 17 00:00:00 2001
+From a6024b28711465815a96865bcaa07ffe21e75877 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 16:53:45 +0530
 Subject: [PATCH] JusBrowse: webpage rendering shell - rounded card + bottom
@@ -9,16 +9,16 @@ Matches design: inset rounded engine (28dp, 10dp margins, dark shell
 title' placeholder, 'cats' for search). Hides default toolbar to give
 full web-content focus as in mockup.
 ---
- .../mozilla/fenix/browser/BrowserFragment.kt  |  32 ++++++
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  31 +++++
  .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 107 ++++++++++++++++++
  .../main/res/drawable/jusbrowse_card_bg.xml   |   6 +
- .../src/main/res/layout/fragment_browser.xml  |  53 +++++++--
- 4 files changed, 188 insertions(+), 10 deletions(-)
+ .../src/main/res/layout/fragment_browser.xml  |  31 ++++-
+ 4 files changed, 173 insertions(+), 2 deletions(-)
  create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
  create mode 100644 mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
 
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-index 179763a96967..1ccc2bd446a5 100644
+index 179763a96967..29f18cdc4e65 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
 @@ -25,7 +25,9 @@ import kotlinx.coroutines.flow.flatMapLatest
@@ -31,13 +31,12 @@ index 179763a96967..1ccc2bd446a5 100644
  import mozilla.components.browser.state.state.SessionState
  import mozilla.components.browser.state.state.TabSessionState
  import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
-@@ -158,6 +160,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+@@ -158,6 +160,35 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
      override fun initializeUI(view: View, tab: SessionState) {
          super.initializeUI(view, tab)
  
 +        runCatching {
-+            val card = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseCard)
-+            card?.apply {
++            view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)?.apply {
 +                clipToOutline = true
 +                outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
 +            }
@@ -194,10 +193,10 @@ index 000000000000..7a9f9fb2fd34
 +    <solid android:color="#1E2022" />
 +</shape>
 diff --git a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
-index 9c07d8aa8c60..f6bfa7f0313f 100644
+index 9c07d8aa8c60..e4663c443e4d 100644
 --- a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
 +++ b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
-@@ -18,23 +18,50 @@
+@@ -18,16 +18,37 @@
              android:id="@+id/browserLayout"
              android:layout_width="match_parent"
              android:layout_height="0dp"
@@ -207,58 +206,37 @@ index 9c07d8aa8c60..f6bfa7f0313f 100644
              app:layout_constraintTop_toTopOf="parent"
              tools:context="browser.BrowserFragment">
  
--            <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
--                android:id="@+id/swipeRefresh"
++            <TextView
++                android:id="@+id/jusBrowseEmptyHint"
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:layout_gravity="center"
++                android:alpha="0.55"
++                android:elevation="1dp"
++                android:gravity="center"
++                android:lineSpacingExtra="4dp"
++                android:text="Web Content\ndisplaying here"
++                android:textColor="#9AA0A6"
++                android:textSize="22sp"
++                android:textStyle="bold"
++                android:visibility="gone"
++                tools:visibility="visible" />
++
+             <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
+                 android:id="@+id/swipeRefresh"
 -                android:background="@null"
-+            <FrameLayout
-+                android:id="@+id/jusBrowseCard"
                  android:layout_width="match_parent"
 -                android:layout_height="match_parent">
--
--                <mozilla.components.concept.engine.EngineView
--                    android:id="@+id/engineView"
 +                android:layout_height="match_parent"
 +                android:layout_margin="10dp"
 +                android:layout_marginBottom="76dp"
 +                android:background="@drawable/jusbrowse_card_bg"
 +                android:clipToOutline="true"
-+                android:elevation="0dp">
-+
-+                <TextView
-+                    android:id="@+id/jusBrowseEmptyHint"
-+                    android:layout_width="wrap_content"
-+                    android:layout_height="wrap_content"
-+                    android:layout_gravity="center"
-+                    android:alpha="0.55"
-+                    android:gravity="center"
-+                    android:lineSpacingExtra="4dp"
-+                    android:text="Web Content\ndisplaying here"
-+                    android:textColor="#9AA0A6"
-+                    android:textSize="22sp"
-+                    android:textStyle="bold"
-+                    android:visibility="gone"
-+                    tools:visibility="visible" />
-+
-+                <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
-+                    android:id="@+id/swipeRefresh"
-+                    android:background="@android:color/transparent"
-                     android:layout_width="match_parent"
--                    android:layout_height="match_parent"
--                    android:visibility="visible" />
--            </mozilla.components.ui.widgets.VerticalSwipeRefreshLayout>
-+                    android:layout_height="match_parent">
-+
-+                    <mozilla.components.concept.engine.EngineView
-+                        android:id="@+id/engineView"
-+                        android:layout_width="match_parent"
-+                        android:layout_height="match_parent"
-+                        android:visibility="visible" />
-+                </mozilla.components.ui.widgets.VerticalSwipeRefreshLayout>
-+            </FrameLayout>
++                android:elevation="2dp">
  
-             <ViewStub
-                 android:id="@+id/findInPageViewStub"
-@@ -110,6 +137,12 @@
+                 <mozilla.components.concept.engine.EngineView
+                     android:id="@+id/engineView"
+@@ -110,6 +131,12 @@
                  android:layout_width="match_parent"
                  android:layout_height="wrap_content" />
  
