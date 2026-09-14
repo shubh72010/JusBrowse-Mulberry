@@ -1,0 +1,26 @@
+From 617e6843c7f7fec5402da35946668af7c1cffe19 Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 18:49:23 +0530
+Subject: [PATCH] fix: top mode huge gap - padding issue, use dp10 for top
+ (behavior handles translation), keep bottom dynamic
+
+---
+ .../src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt  | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index 0e5d1ed7854a..856173ab7d25 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -195,7 +195,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+                     val swipeView = swipeRefreshView ?: return@addOnPreDrawListener true
+                     android.util.Log.d("JusBrowseCard", "topVisible=$topVisible bottomVisible=$bottomVisible")
+                     (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
+-                        val newTop = if (topVisible > 0) topVisible else dp10
++                        val newTop = dp10
+                         val newBottom = if (bottomVisible > 0) bottomVisible + dp10 else dp10
+                         if (lp.topMargin != newTop || lp.bottomMargin != newBottom || lp.leftMargin != dp10) {
+                             lp.topMargin = newTop
+-- 
+2.55.0
+
