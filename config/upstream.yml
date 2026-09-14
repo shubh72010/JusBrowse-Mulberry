@@ -1,0 +1,15 @@
+# Pinned mozilla-central revision. Reproducible builds.
+# Update only after: fetch → checkout → apply patches → build → test.
+mozilla:
+  # Exact hg/git revision of mozilla-central (git hash when using gecko-dev mirror
+  # or the git hash of the mozilla-central git mirror, or hg changeset if using hg).
+  # Use `git rev-parse HEAD` inside source/mozilla-central.
+  revision: b14ad10e3f7593276d59cede793ffbdd4b3a7a11
+
+  # Remote — mozilla-central canonical mercurial, or github mirror.
+  # Default: https://github.com/mozilla/gecko-dev  (git mirror of mozilla-central)
+  # Alternative hg: https://hg.mozilla.org/mozilla-central
+  remote: https://github.com/mozilla/gecko-dev
+
+  # Branch / bookmark to track
+  branch: master

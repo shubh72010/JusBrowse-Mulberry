@@ -1,0 +1,337 @@
+From eb5308aa0523be6ae9ff850b1043ad6de7906f1e Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Sat, 12 Sep 2026 11:47:10 +0530
+Subject: [PATCH 2/4] JusBrowse: add dot pill overlay (port from Strait
+ SnapPillMenu)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Port Strait's SnapPillMenu pill — bottom-centered dot that expands to
+a small menu on tap/swipe. Isolated to JusBrowseDotPill.kt (additive
+only for b14, wiring deferred to keep patch rebasing trivial).
+---
+ .../org/mozilla/fenix/jusbrowse/DotPill.kt    | 249 ++++++++++++++++++
+ .../fenix/jusbrowse/PillGestureEngine.kt      |  54 ++++
+ 2 files changed, 303 insertions(+)
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/DotPill.kt
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/PillGestureEngine.kt
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/DotPill.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/DotPill.kt
+new file mode 100644
+index 000000000000..1c3566681732
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/DotPill.kt
+@@ -0,0 +1,249 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.jusbrowse
++
++import androidx.compose.animation.AnimatedContent
++import androidx.compose.animation.core.Spring
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.spring
++import androidx.compose.animation.core.tween
++import androidx.compose.animation.fadeIn
++import androidx.compose.animation.fadeOut
++import androidx.compose.animation.scaleIn
++import androidx.compose.animation.scaleOut
++import androidx.compose.animation.togetherWith
++import androidx.compose.foundation.BorderStroke
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.combinedClickable
++import androidx.compose.foundation.gestures.detectDragGestures
++import androidx.compose.foundation.interaction.MutableInteractionSource
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.imePadding
++import androidx.compose.foundation.layout.navigationBarsPadding
++import androidx.compose.foundation.layout.offset
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.text.BasicTextField
++import androidx.compose.foundation.text.KeyboardActions
++import androidx.compose.foundation.text.KeyboardOptions
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.shadow
++import androidx.compose.ui.focus.FocusRequester
++import androidx.compose.ui.focus.focusRequester
++import androidx.compose.ui.focus.onFocusChanged
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalFocusManager
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.IntOffset
++import androidx.compose.ui.unit.dp
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.filled.ArrowBack
++import androidx.compose.material.icons.automirrored.filled.ArrowForward
++import androidx.compose.material.icons.filled.Add
++import androidx.compose.material.icons.filled.Close
++import androidx.compose.material.icons.filled.Lock
++import androidx.compose.material.icons.filled.MoreVert
++import androidx.compose.material.icons.filled.Refresh
++import androidx.compose.material.icons.filled.Search
++import androidx.compose.material.icons.filled.Settings
++import androidx.compose.material.icons.filled.Star
++import mozilla.components.browser.state.selector.selectedTab
++import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
++import mozilla.components.lib.state.ext.observeAsComposableState
++import org.mozilla.fenix.ext.components
++import kotlin.math.roundToInt
++
++private const val PILL_MIN_W = 260
++private const val PILL_MAX_W = 360
++private const val PILL_H_COLLAPSED = 56
++private const val PILL_H_MENU = 420
++
++@Composable
++fun JusBrowseDotPill(
++    modifier: Modifier = Modifier,
++    onNewTab: () -> Unit = {},
++    onSettings: () -> Unit = {},
++) {
++    val context = LocalContext.current
++    val store = context.components.core.store
++    val state by store.observeAsComposableState { it }
++    val tab = state.selectedTab
++    val url = tab?.content?.url ?: ""
++    val canBack = tab?.content?.canGoBack == true
++    val canForward = tab?.content?.canGoForward == true
++    val isSecure = url.startsWith("https://")
++    val host = url.removePrefix("https://").removePrefix("http://").substringBefore("/").takeIf { it != "about:blank" && it.isNotBlank() } ?: ""
++    val fullUrl = if (url == "about:blank" || url == "about:home") "" else url
++
++    val engine = remember { PillGestureEngine() }
++    val focusRequester = remember { FocusRequester() }
++    val focusManager = LocalFocusManager.current
++    var text by remember { mutableStateOf("") }
++    var hasFocus by remember { mutableStateOf(false) }
++
++    LaunchedEffect(tab?.id, fullUrl, engine.isExpandedOrMenu) {
++        if (!engine.isExpandedOrMenu) text = fullUrl
++    }
++    LaunchedEffect(engine.snapState) {
++        if (engine.snapState == PillSnapState.EXPANDED) {
++            kotlinx.coroutines.delay(80)
++            focusRequester.requestFocus()
++        }
++    }
++
++    val isMenu = engine.isMenuOpen
++    val isExpanded = engine.isExpandedOrMenu
++    val level = when {
++        isMenu -> 2f
++        isExpanded -> 1f
++        else -> 0f
++    }
++    val animLevel by animateFloatAsState(level, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow), label = "pillLevel")
++    val effective = if (engine.isDragging) engine.dragProgress else animLevel.coerceIn(0f, 1f).let { if (isMenu) 1f else it }
++    val width = PILL_MIN_W.dp + (PILL_MAX_W - PILL_MIN_W).dp * effective.coerceIn(0f, 1f)
++    val height = if (animLevel <= 1f) PILL_H_COLLAPSED.dp else PILL_H_COLLAPSED.dp + (PILL_H_MENU - PILL_H_COLLAPSED).dp * (animLevel - 1f)
++    val corner = 28.dp + 4.dp * animLevel.coerceIn(0f, 1f)
++    val scrim = if (isExpanded) 0.6f else 0f
++    val offsetX = if (engine.isDragging) (engine.rawXOffset * 0.6f).roundToInt() else 0
++    val offsetY = if (engine.isDragging) (engine.rawYOffset.coerceAtMost(0f) * 0.4f).roundToInt() else 0
++
++    fun doSearch(query: String) {
++        val q = query.trim()
++        if (q.isEmpty()) return
++        val searchEngine = context.components.appStore.state.searchState.selectedSearchEngine?.searchEngine
++            ?: store.state.search.selectedOrDefaultSearchEngine
++        val isPrivate = tab?.content?.private ?: context.components.appStore.state.mode.isPrivate
++        context.components.useCases.fenixBrowserUseCases.loadUrlOrSearch(
++            searchTermOrURL = q,
++            newTab = false,
++            searchEngine = searchEngine,
++            private = isPrivate,
++        )
++        engine.dismissMenu()
++        focusManager.clearFocus()
++    }
++
++    Box(Modifier.fillMaxSize()) {
++        if (scrim > 0f) {
++            Box(Modifier.fillMaxSize().background(Color.Black.copy(scrim)).clickable(remember { MutableInteractionSource() }, null) {
++                engine.dismissMenu(); focusManager.clearFocus()
++            })
++        }
++        Box(
++            modifier
++                .align(Alignment.BottomCenter)
++                .navigationBarsPadding()
++                .imePadding()
++                .padding(bottom = 12.dp)
++                .offset { IntOffset(offsetX, offsetY) }
++                .width(width).height(height)
++                .shadow(12.dp, RoundedCornerShape(corner))
++                .border(BorderStroke(1.2.dp, Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(0.45f), Color.White.copy(0.18f), MaterialTheme.colorScheme.secondary.copy(0.22f)))), RoundedCornerShape(corner))
++                .clip(RoundedCornerShape(corner))
++                .background(if (isMenu) MaterialTheme.colorScheme.surface.copy(0.98f) else MaterialTheme.colorScheme.surface.copy(0.92f))
++                .then(if (!isExpanded) Modifier.combinedClickable(onClick = { engine.toggleExpand() }, onLongClick = { tab?.id?.let { context.components.useCases.sessionUseCases.reload.invoke(it) } }) else Modifier)
++                .pointerInput(Unit) {
++                    detectDragGestures(
++                        onDragStart = { engine.onDragStart() },
++                        onDrag = { c, a -> c.consume(); engine.onDrag(a.y, a.x) },
++                        onDragEnd = {
++                            val x = engine.rawXOffset
++                            if (x > 150f && canBack) state.selectedTab?.id?.let { context.components.useCases.sessionUseCases.goBack.invoke(it) }
++                            else if (x < -150f && canForward) state.selectedTab?.id?.let { context.components.useCases.sessionUseCases.goForward.invoke(it) }
++                            engine.onDragEnd()
++                        },
++                    )
++                },
++        ) {
++            AnimatedContent(
++                targetState = if (isMenu) 2 else if (isExpanded) 1 else 0,
++                transitionSpec = { (fadeIn(tween(180)) + scaleIn(initialScale = 0.92f)) togetherWith (fadeOut(tween(90)) + scaleOut(targetScale = 0.92f)) },
++                label = "pill",
++            ) { s ->
++                when (s) {
++                    0 -> Box(Modifier.fillMaxSize(), Alignment.Center) { Box(Modifier.size(12.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)) }
++                    1 -> Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
++                        IconButton(onClick = { tab?.id?.let { context.components.useCases.sessionUseCases.goBack.invoke(it) } }, enabled = canBack, modifier = Modifier.size(32.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, Modifier.size(18.dp)) }
++                        IconButton(onClick = { tab?.id?.let { context.components.useCases.sessionUseCases.goForward.invoke(it) } }, enabled = canForward, modifier = Modifier.size(32.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp)) }
++                        if (isSecure) { Icon(Icons.Filled.Lock, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(6.dp)) }
++                        BasicTextField(
++                            value = text,
++                            onValueChange = { text = it },
++                            modifier = Modifier.weight(1f).focusRequester(focusRequester).onFocusChanged { hasFocus = it.isFocused },
++                            singleLine = true,
++                            textStyle = MaterialTheme.typography.bodyMedium.copy(MaterialTheme.colorScheme.onSurface),
++                            decorationBox = { inner ->
++                                Box {
++                                    if (text.isEmpty()) Text(
++                                        text = if (hasFocus) "Search or enter address" else host.ifBlank { "Search or enter address" },
++                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
++                                        color = if (host.isNotBlank() && !hasFocus) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.6f),
++                                    )
++                                    inner()
++                                }
++                            },
++                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
++                            keyboardActions = KeyboardActions(onSearch = { doSearch(text) }),
++                        )
++                        IconButton(onClick = { if (text.isNotEmpty()) text = "" else doSearch(text) }, modifier = Modifier.size(32.dp)) { Icon(if (text.isNotEmpty()) Icons.Filled.Close else Icons.Filled.Search, null, Modifier.size(18.dp)) }
++                    }
++                    else -> {
++                        val scroll = rememberScrollState()
++                        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
++                            Box(Modifier.size(32.dp, 4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(0.4f)).clickable { engine.dismissMenu() })
++                            Spacer(Modifier.height(12.dp))
++                            Text("JusBrowse", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
++                            Spacer(Modifier.height(12.dp))
++                            MenuRow(Icons.Filled.Add, "New tab") { engine.dismissMenu(); onNewTab() }
++                            MenuRow(Icons.Filled.Star, "New private tab") { engine.dismissMenu(); context.components.useCases.tabsUseCases.addTab.invoke(url = "about:blank", private = true, selectTab = true) }
++                            MenuRow(Icons.Filled.Search, "History") { engine.dismissMenu() }
++                            MenuRow(Icons.Filled.Refresh, "Reload") { engine.dismissMenu(); tab?.id?.let { context.components.useCases.sessionUseCases.reload.invoke(it) } }
++                            MenuRow(Icons.Filled.Settings, "Settings") { engine.dismissMenu(); onSettings() }
++                            MenuRow(Icons.Filled.MoreVert, "Close") { engine.dismissMenu() }
++                            Spacer(Modifier.height(16.dp))
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++@Composable private fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
++    Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(0.5f), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
++        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(12.dp)); Text(label, style = MaterialTheme.typography.bodyMedium) }
++    }
++}
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/PillGestureEngine.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/PillGestureEngine.kt
+new file mode 100644
+index 000000000000..628f490300cf
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/PillGestureEngine.kt
+@@ -0,0 +1,54 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.jusbrowse
++
++import androidx.compose.runtime.Stable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableFloatStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.setValue
++
++enum class PillSnapState { CLOSED, EXPANDING, EXPANDED, MENU_OPEN }
++
++@Stable
++class PillGestureEngine {
++    var snapState by mutableStateOf(PillSnapState.CLOSED); private set
++    var isDragging by mutableStateOf(false); private set
++    var dragProgress by mutableFloatStateOf(0f); private set
++    var gestureProgress by mutableFloatStateOf(0f); private set
++    var rawYOffset by mutableFloatStateOf(0f); private set
++    var rawXOffset by mutableFloatStateOf(0f); private set
++    private var lastFrameMs = 0L
++    private val snapThreshold = 100f
++    private val menuThreshold = 180f
++    fun onDragStart() { rawYOffset = 0f; rawXOffset = 0f; dragProgress = 0f; isDragging = true; snapState = PillSnapState.CLOSED; lastFrameMs = System.currentTimeMillis() }
++    fun onDrag(deltaY: Float, deltaX: Float) {
++        val now = System.currentTimeMillis()
++        if (now - lastFrameMs < 16L) return
++        rawYOffset += deltaY
++        rawXOffset += deltaX
++        dragProgress = (-rawYOffset).coerceAtLeast(0f).div(snapThreshold).coerceAtMost(1f)
++        if (snapState == PillSnapState.CLOSED && dragProgress > 0.05f) snapState = PillSnapState.EXPANDING
++        lastFrameMs = now
++    }
++    fun onDragEnd(): PillSnapState {
++        isDragging = false
++        val up = -rawYOffset
++        snapState = when {
++            up > menuThreshold -> { gestureProgress = 1f; PillSnapState.MENU_OPEN }
++            up > snapThreshold -> { gestureProgress = 1f; PillSnapState.EXPANDED }
++            else -> { gestureProgress = 0f; PillSnapState.CLOSED }
++        }
++        if (snapState == PillSnapState.CLOSED) { rawYOffset = 0f; rawXOffset = 0f; dragProgress = 0f }
++        return snapState
++    }
++    fun dismissMenu() { snapState = PillSnapState.CLOSED; gestureProgress = 0f; dragProgress = 0f; rawYOffset = 0f; rawXOffset = 0f }
++    fun toggleExpand() {
++        if (snapState == PillSnapState.EXPANDED || snapState == PillSnapState.MENU_OPEN) { snapState = PillSnapState.CLOSED; gestureProgress = 0f }
++        else { snapState = PillSnapState.EXPANDED; gestureProgress = 1f }
++    }
++    val isExpandedOrMenu get() = snapState == PillSnapState.EXPANDED || snapState == PillSnapState.MENU_OPEN
++    val isMenuOpen get() = snapState == PillSnapState.MENU_OPEN
++}
+-- 
+2.55.0
+

@@ -1,0 +1,234 @@
+From ee264c820c046efb2d9d88d51f78af7245bdb9bc Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 16:53:45 +0530
+Subject: [PATCH] JusBrowse: webpage rendering shell - rounded card + bottom
+ title pill
+
+Matches design: inset rounded engine (28dp, 10dp margins, dark shell
+#0A0C0F) and centered bottom pill showing page title/host (or 'page
+title' placeholder, 'cats' for search). Hides default toolbar to give
+full web-content focus as in mockup.
+---
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  16 +++
+ .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 104 ++++++++++++++++++
+ .../main/res/drawable/jusbrowse_card_bg.xml   |   6 +
+ .../src/main/res/layout/fragment_browser.xml  |  38 +++++--
+ 4 files changed, 154 insertions(+), 10 deletions(-)
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
+ create mode 100644 mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index 179763a96967..8deb023d0302 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -158,6 +158,22 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+     override fun initializeUI(view: View, tab: SessionState) {
+         super.initializeUI(view, tab)
+ 
++        runCatching {
++            val card = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseCard)
++            card?.apply {
++                clipToOutline = true
++                outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
++            }
++            val pill = view.findViewById<androidx.compose.ui.platform.ComposeView>(org.mozilla.fenix.R.id.jusBrowsePill)
++            pill?.setContent {
++                org.mozilla.fenix.theme.FirefoxTheme {
++                    org.mozilla.fenix.jusbrowse.JusBrowseBrowserPill()
++                }
++            }
++            _browserToolbar?.layout?.visibility = View.GONE
++            _bottomToolbarContainerView?.visibility = View.GONE
++        }
++
+         val context = requireContext()
+         val components = context.components
+         val settings = components.settings
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
+new file mode 100644
+index 000000000000..681245141a0d
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
+@@ -0,0 +1,104 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.jusbrowse
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.navigationBarsPadding
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.shadow
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import mozilla.components.browser.state.selector.selectedTab
++import mozilla.components.lib.state.ext.observeAsComposableState
++import org.mozilla.fenix.ext.components
++
++@Composable
++fun JusBrowseBrowserPill(modifier: Modifier = Modifier) {
++    val context = LocalContext.current
++    val store = context.components.core.store
++    val state by store.observeAsComposableState { it }
++    val tab = state.selectedTab
++    val rawTitle = tab?.content?.title?.trim().orEmpty()
++    val url = tab?.content?.url.orEmpty()
++    val host = url.removePrefix("https://").removePrefix("http://").substringBefore("/").substringBefore("?")
++        .takeIf { it.isNotBlank() && it != "about:blank" && it != "about:home" } ?: ""
++
++    val displayTitle = when {
++        rawTitle.isNotBlank() && url != "about:blank" && url != "about:home" -> {
++            val t = rawTitle
++            when {
++                t.contains(" - Google Search") -> t.substringBefore(" - Google Search").trim().ifEmpty { t }
++                else -> t
++            }
++        }
++        url.contains("q=") && host.contains("google.") -> {
++            try {
++                val q = url.substringAfter("q=").substringBefore("&").replace("+", " ")
++                java.net.URLDecoder.decode(q, "UTF-8").ifBlank { host }
++            } catch (_: Exception) { host.ifBlank { "page title" } }
++        }
++        host.isNotBlank() -> host
++        else -> "page title"
++    }.ifBlank { "page title" }
++
++    Box(
++        modifier = modifier
++            .fillMaxWidth()
++            .navigationBarsPadding()
++            .padding(bottom = 14.dp),
++        contentAlignment = Alignment.BottomCenter,
++    ) {
++        Box(
++            modifier = Modifier
++                .widthIn(min = 180.dp, max = 320.dp)
++                .height(52.dp)
++                .shadow(10.dp, RoundedCornerShape(28.dp))
++                .border(
++                    width = 1.dp,
++                    brush = Brush.linearGradient(
++                        listOf(
++                            Color.White.copy(alpha = 0.12f),
++                            Color.White.copy(alpha = 0.04f),
++                        ),
++                    ),
++                    shape = RoundedCornerShape(28.dp),
++                )
++                .clip(RoundedCornerShape(28.dp))
++                .background(Color(0xFF3A3D42).copy(alpha = 0.98f))
++                .padding(horizontal = 24.dp),
++            contentAlignment = Alignment.Center,
++        ) {
++            Text(
++                text = displayTitle,
++                color = if (displayTitle == "page title") Color.White.copy(alpha = 0.58f) else Color.White,
++                fontSize = 15.sp,
++                fontWeight = if (displayTitle == "page title") FontWeight.Medium else FontWeight.SemiBold,
++                maxLines = 1,
++                overflow = TextOverflow.Ellipsis,
++                textAlign = TextAlign.Center,
++                style = MaterialTheme.typography.titleMedium,
++            )
++        }
++    }
++}
+diff --git a/mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml b/mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
+new file mode 100644
+index 000000000000..7a9f9fb2fd34
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android"
++    android:shape="rectangle">
++    <corners android:radius="28dp" />
++    <solid android:color="#1E2022" />
++</shape>
+diff --git a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
+index 9c07d8aa8c60..ad7c5d55b8b3 100644
+--- a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
++++ b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
+@@ -18,23 +18,35 @@
+             android:id="@+id/browserLayout"
+             android:layout_width="match_parent"
+             android:layout_height="0dp"
++            android:background="#0A0C0F"
+             app:layout_constraintHeight_min="1dp"
+             app:layout_constraintBottom_toBottomOf="parent"
+             app:layout_constraintTop_toTopOf="parent"
+             tools:context="browser.BrowserFragment">
+ 
+-            <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
+-                android:id="@+id/swipeRefresh"
+-                android:background="@null"
++            <FrameLayout
++                android:id="@+id/jusBrowseCard"
+                 android:layout_width="match_parent"
+-                android:layout_height="match_parent">
+-
+-                <mozilla.components.concept.engine.EngineView
+-                    android:id="@+id/engineView"
++                android:layout_height="match_parent"
++                android:layout_margin="10dp"
++                android:layout_marginBottom="76dp"
++                android:background="@drawable/jusbrowse_card_bg"
++                android:clipToOutline="true"
++                android:elevation="0dp">
++
++                <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
++                    android:id="@+id/swipeRefresh"
++                    android:background="@android:color/transparent"
+                     android:layout_width="match_parent"
+-                    android:layout_height="match_parent"
+-                    android:visibility="visible" />
+-            </mozilla.components.ui.widgets.VerticalSwipeRefreshLayout>
++                    android:layout_height="match_parent">
++
++                    <mozilla.components.concept.engine.EngineView
++                        android:id="@+id/engineView"
++                        android:layout_width="match_parent"
++                        android:layout_height="match_parent"
++                        android:visibility="visible" />
++                </mozilla.components.ui.widgets.VerticalSwipeRefreshLayout>
++            </FrameLayout>
+ 
+             <ViewStub
+                 android:id="@+id/findInPageViewStub"
+@@ -110,6 +122,12 @@
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content" />
+ 
++            <androidx.compose.ui.platform.ComposeView
++                android:id="@+id/jusBrowsePill"
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:layout_gravity="bottom|center_horizontal" />
++
+         </androidx.coordinatorlayout.widget.CoordinatorLayout>
+ 
+     </androidx.constraintlayout.widget.ConstraintLayout>
+-- 
+2.55.0
+

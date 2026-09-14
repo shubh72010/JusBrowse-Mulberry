@@ -1,0 +1,29 @@
+# JusBrowse mozconfig — Fenix / Firefox Android
+# Copy / symlink to source/mozilla-central/mozconfig before building.
+# See: https://searchfox.org/mozilla-central/source/mobile/android/moz.configure
+
+# Target Firefox Android (Fenix)
+ac_add_options --enable-application=mobile/android
+
+# Gradle will handle SDK/NDK via mach bootstrap or local.properties;
+# uncomment and set paths if not using Android Studio auto-download:
+# ac_add_options --with-android-sdk="/home/$USER/Android/Sdk"
+# ac_add_options --with-android-ndk="/home/$USER/Android/Sdk/ndk/26.1.10909125"
+
+# Build config
+ac_add_options --target=aarch64-linux-android
+
+# Branding (JusBrowse overrides this via patches; keep upstream default here)
+# ac_add_options --with-branding=mobile/android/branding/nightly
+
+# Opt./debug — release by default, use --enable-debug for local builds
+# ac_add_options --enable-debug
+# ac_add_options --enable-optimize
+
+# Artifact builds speed up local iteration (no full Gecko compile).
+# Comment out for full builds / CI release.
+ac_add_options --enable-artifact-builds
+
+# CCACHE — uncomment if installed
+# ac_add_options --with-ccache=sccache
+mk_add_options AUTOCLOBBER=1

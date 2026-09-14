@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+# jusbrowse — convenience CLI (Helium-style)
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+
+cmd=${1:-help}
+case "$cmd" in
+  bootstrap) exec "$ROOT/scripts/bootstrap.sh" ;;
+  fetch)     exec "$ROOT/scripts/fetch-upstream.sh" ;;
+  apply)     exec "$ROOT/scripts/apply-patches.sh" ;;
+  refresh)   exec "$ROOT/scripts/refresh-patches.sh" ;;
+  build)     shift; exec "$ROOT/scripts/build.sh" "$@" ;;
+  update)    shift; exec "$ROOT/scripts/update-upstream.sh" "$@" ;;
+  clean)     echo "Removing disposable source..."; rm -rf "$ROOT/source/mozilla-central"; echo "Done. Run ./jusbrowse bootstrap to recreate." ;;
+  help|*) cat <<'EOF'
+JusBrowse — patch-based downstream of Firefox Android
+
+Usage: ./jusbrowse <cmd>
+
+  bootstrap        fetch upstream at pinned rev + apply patches
+  fetch            fetch/clone mozilla-central at pinned revision
+  apply            apply patches/*.patch via git am
+  refresh          regenerate patches from commits after base
+  build            ./mach gradle fenix:assembleDebug
+  update [rev]     try patches against newer upstream rev
+  clean            delete disposable source/mozilla-central
+
+Source tree is disposable: rm -rf source/mozilla-central at any time.
+EOF
+  ;;
+esac

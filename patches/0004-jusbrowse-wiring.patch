@@ -1,0 +1,69 @@
+From a9696230e49de33557e2499570feca5d14db5dfb Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Sat, 12 Sep 2026 12:31:19 +0530
+Subject: [PATCH 4/4] JusBrowse: wire dot pill and startpage background
+
+- HomeFragment: overlay JusBrowseDotPill in scaffold Box
+- Homepage: add JusBrowseStartPageBackground WALLPAPER_BLUE1
+Wiring deferred earlier for b14 rebase stability; now verified compile.
+---
+ .../java/org/mozilla/fenix/home/HomeFragment.kt    | 14 ++++++++++++++
+ .../java/org/mozilla/fenix/home/ui/Homepage.kt     |  3 +++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/HomeFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/HomeFragment.kt
+index f69c77fac91b..58e46ead5129 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/HomeFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/HomeFragment.kt
+@@ -185,6 +185,7 @@ import org.mozilla.fenix.termsofuse.store.PrivacyNoticeBannerState
+ import org.mozilla.fenix.termsofuse.store.PrivacyNoticeBannerStore
+ import org.mozilla.fenix.termsofuse.store.PrivacyNoticeBannerTelemetryMiddleware
+ import org.mozilla.fenix.termsofuse.store.Surface
++import org.mozilla.fenix.jusbrowse.JusBrowseDotPill
+ import org.mozilla.fenix.theme.FirefoxTheme
+ import org.mozilla.fenix.trackingprotection.TrackersBlockedFeature
+ import org.mozilla.fenix.utils.Settings
+@@ -755,6 +756,19 @@ class HomeFragment : Fragment(), UserInteractionHandler, OnLongPressedListener {
+                                 microsurvey = appState.value.microsurvey.current,
+                             )
+                         }
++
++                        JusBrowseDotPill(
++                            onNewTab = {
++                                requireComponents.useCases.tabsUseCases.addTab.invoke(
++                                    url = "about:home",
++                                )
++                            },
++                            onSettings = {
++                                findNavController().navigate(
++                                    org.mozilla.fenix.NavGraphDirections.actionGlobalSettingsFragment(),
++                                )
++                            },
++                        )
+                     }
+                 }
+ 
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt
+index 612108089931..a4112dc1926f 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt
+@@ -106,6 +106,7 @@ import org.mozilla.fenix.home.topsites.store.toPopularSite
+ import org.mozilla.fenix.home.topsites.ui.AddShortcutBottomSheet
+ import org.mozilla.fenix.home.topsites.ui.AddShortcutDialog
+ import org.mozilla.fenix.home.ui.HomepageTestTag.HOMEPAGE
++import org.mozilla.fenix.jusbrowse.JusBrowseStartPageBackground
+ import org.mozilla.fenix.theme.FirefoxTheme
+ import org.mozilla.fenix.trackingprotection.TrackersBlockedCard
+ import org.mozilla.fenix.utils.isLargeScreenSize
+@@ -136,6 +137,8 @@ internal fun Homepage(
+     var shortcutsDialogState by remember { mutableStateOf<DialogState>(DialogState.Closed) }
+ 
+     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
++        JusBrowseStartPageBackground(presetName = "WALLPAPER_BLUE1")
++
+         Column(
+             modifier =
+                 Modifier.fillMaxSize()
+-- 
+2.55.0
+
