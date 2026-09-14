@@ -1,0 +1,38 @@
+From 5774e9b05df18315c639070f167084a50367848d Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 18:45:10 +0530
+Subject: [PATCH] debug: log toolbar heights + fix top huge gap (topVisible no
+ extra dp)
+
+---
+ .../main/java/org/mozilla/fenix/browser/BrowserFragment.kt   | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index b98dc7bcf264..0e5d1ed7854a 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -183,6 +183,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+                     var topVisible = 0
+                     var bottomVisible = 0
+                     for (tb in toolbars) {
++                        android.util.Log.d("JusBrowseCard", "tb class=${tb.javaClass.simpleName} top=${tb.top} h=${tb.height} trans=${tb.translationY} isShown=${tb.isShown} alpha=${tb.alpha} vis=${tb.visibility}")
+                         if (!tb.isShown) continue
+                         if (tb.top < parent.height / 2) {
+                             topVisible = (tb.height + tb.translationY).toInt().coerceIn(0, tb.height)
+@@ -190,9 +191,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+                             bottomVisible = (tb.height - tb.translationY).toInt().coerceIn(0, tb.height)
+                         }
+                     }
++                    android.util.Log.d("JusBrowseCard", "calc topVisible=$topVisible bottomVisible=$bottomVisible")
+                     val swipeView = swipeRefreshView ?: return@addOnPreDrawListener true
++                    android.util.Log.d("JusBrowseCard", "topVisible=$topVisible bottomVisible=$bottomVisible")
+                     (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
+-                        val newTop = if (topVisible > 0) topVisible + dp10 else dp10
++                        val newTop = if (topVisible > 0) topVisible else dp10
+                         val newBottom = if (bottomVisible > 0) bottomVisible + dp10 else dp10
+                         if (lp.topMargin != newTop || lp.bottomMargin != newBottom || lp.leftMargin != dp10) {
+                             lp.topMargin = newTop
+-- 
+2.55.0
+
