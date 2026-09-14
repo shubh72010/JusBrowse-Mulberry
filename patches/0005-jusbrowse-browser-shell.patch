@@ -1,4 +1,4 @@
-From ee264c820c046efb2d9d88d51f78af7245bdb9bc Mon Sep 17 00:00:00 2001
+From 1fd32b322fd0fb46ea6a948c2727c64b545ec9bf Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 16:53:45 +0530
 Subject: [PATCH] JusBrowse: webpage rendering shell - rounded card + bottom
@@ -9,19 +9,19 @@ Matches design: inset rounded engine (28dp, 10dp margins, dark shell
 title' placeholder, 'cats' for search). Hides default toolbar to give
 full web-content focus as in mockup.
 ---
- .../mozilla/fenix/browser/BrowserFragment.kt  |  16 +++
- .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 104 ++++++++++++++++++
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  30 +++++
+ .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 107 ++++++++++++++++++
  .../main/res/drawable/jusbrowse_card_bg.xml   |   6 +
- .../src/main/res/layout/fragment_browser.xml  |  38 +++++--
- 4 files changed, 154 insertions(+), 10 deletions(-)
+ .../src/main/res/layout/fragment_browser.xml  |  53 +++++++--
+ 4 files changed, 186 insertions(+), 10 deletions(-)
  create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
  create mode 100644 mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
 
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-index 179763a96967..8deb023d0302 100644
+index 179763a96967..eebdf680ed6c 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-@@ -158,6 +158,22 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+@@ -158,6 +158,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
      override fun initializeUI(view: View, tab: SessionState) {
          super.initializeUI(view, tab)
  
@@ -39,6 +39,20 @@ index 179763a96967..8deb023d0302 100644
 +            }
 +            _browserToolbar?.layout?.visibility = View.GONE
 +            _bottomToolbarContainerView?.visibility = View.GONE
++            val emptyHint = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseEmptyHint)
++            if (emptyHint != null) {
++                val store = requireContext().components.core.store
++                viewLifecycleOwner.lifecycleScope.launch {
++                    store.flow().collect { state ->
++                        val tab = state.selectedTab
++                        val url = tab?.content?.url.orEmpty()
++                        val title = tab?.content?.title?.trim().orEmpty()
++                        val isEmpty = (url == "about:blank" || url == "about:home" || url.isBlank()) && title.isBlank()
++                        emptyHint.visibility = if (isEmpty) View.VISIBLE else View.GONE
++                        emptyHint.bringToFront()
++                    }
++                }
++            }
 +        }
 +
          val context = requireContext()
@@ -46,10 +60,10 @@ index 179763a96967..8deb023d0302 100644
          val settings = components.settings
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
 new file mode 100644
-index 000000000000..681245141a0d
+index 000000000000..f52950727ac2
 --- /dev/null
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,107 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -137,13 +151,16 @@ index 000000000000..681245141a0d
 +                    shape = RoundedCornerShape(28.dp),
 +                )
 +                .clip(RoundedCornerShape(28.dp))
-+                .background(Color(0xFF3A3D42).copy(alpha = 0.98f))
++                .background(
++                    if (displayTitle == "page title") Color(0xFF6B6B6B).copy(alpha = 0.95f)
++                    else Color(0xFF2F3136).copy(alpha = 0.98f),
++                )
 +                .padding(horizontal = 24.dp),
 +            contentAlignment = Alignment.Center,
 +        ) {
 +            Text(
 +                text = displayTitle,
-+                color = if (displayTitle == "page title") Color.White.copy(alpha = 0.58f) else Color.White,
++                color = if (displayTitle == "page title") Color.White.copy(alpha = 0.60f) else Color.White,
 +                fontSize = 15.sp,
 +                fontWeight = if (displayTitle == "page title") FontWeight.Medium else FontWeight.SemiBold,
 +                maxLines = 1,
@@ -167,10 +184,10 @@ index 000000000000..7a9f9fb2fd34
 +    <solid android:color="#1E2022" />
 +</shape>
 diff --git a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
-index 9c07d8aa8c60..ad7c5d55b8b3 100644
+index 9c07d8aa8c60..f6bfa7f0313f 100644
 --- a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
 +++ b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
-@@ -18,23 +18,35 @@
+@@ -18,23 +18,50 @@
              android:id="@+id/browserLayout"
              android:layout_width="match_parent"
              android:layout_height="0dp"
@@ -197,6 +214,21 @@ index 9c07d8aa8c60..ad7c5d55b8b3 100644
 +                android:clipToOutline="true"
 +                android:elevation="0dp">
 +
++                <TextView
++                    android:id="@+id/jusBrowseEmptyHint"
++                    android:layout_width="wrap_content"
++                    android:layout_height="wrap_content"
++                    android:layout_gravity="center"
++                    android:alpha="0.55"
++                    android:gravity="center"
++                    android:lineSpacingExtra="4dp"
++                    android:text="Web Content\ndisplaying here"
++                    android:textColor="#9AA0A6"
++                    android:textSize="22sp"
++                    android:textStyle="bold"
++                    android:visibility="gone"
++                    tools:visibility="visible" />
++
 +                <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
 +                    android:id="@+id/swipeRefresh"
 +                    android:background="@android:color/transparent"
@@ -216,7 +248,7 @@ index 9c07d8aa8c60..ad7c5d55b8b3 100644
  
              <ViewStub
                  android:id="@+id/findInPageViewStub"
-@@ -110,6 +122,12 @@
+@@ -110,6 +137,12 @@
                  android:layout_width="match_parent"
                  android:layout_height="wrap_content" />
  
