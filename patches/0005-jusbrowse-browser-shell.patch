@@ -1,4 +1,4 @@
-From 1fd32b322fd0fb46ea6a948c2727c64b545ec9bf Mon Sep 17 00:00:00 2001
+From 21b6efdcb9716292ff78237ca4fc6950d95bdb91 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 16:53:45 +0530
 Subject: [PATCH] JusBrowse: webpage rendering shell - rounded card + bottom
@@ -9,19 +9,29 @@ Matches design: inset rounded engine (28dp, 10dp margins, dark shell
 title' placeholder, 'cats' for search). Hides default toolbar to give
 full web-content focus as in mockup.
 ---
- .../mozilla/fenix/browser/BrowserFragment.kt  |  30 +++++
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  32 ++++++
  .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 107 ++++++++++++++++++
  .../main/res/drawable/jusbrowse_card_bg.xml   |   6 +
  .../src/main/res/layout/fragment_browser.xml  |  53 +++++++--
- 4 files changed, 186 insertions(+), 10 deletions(-)
+ 4 files changed, 188 insertions(+), 10 deletions(-)
  create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
  create mode 100644 mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
 
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-index 179763a96967..eebdf680ed6c 100644
+index 179763a96967..1ccc2bd446a5 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-@@ -158,6 +158,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+@@ -25,7 +25,9 @@ import kotlinx.coroutines.flow.flatMapLatest
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+ import mozilla.components.browser.state.selector.selectedTab
++import mozilla.components.browser.state.state.BrowserState
+ import mozilla.components.browser.state.state.CustomTabSessionState
++import mozilla.components.lib.state.ext.flow
+ import mozilla.components.browser.state.state.SessionState
+ import mozilla.components.browser.state.state.TabSessionState
+ import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
+@@ -158,6 +160,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
      override fun initializeUI(view: View, tab: SessionState) {
          super.initializeUI(view, tab)
  
@@ -38,18 +48,18 @@ index 179763a96967..eebdf680ed6c 100644
 +                }
 +            }
 +            _browserToolbar?.layout?.visibility = View.GONE
-+            _bottomToolbarContainerView?.visibility = View.GONE
++            _bottomToolbarContainerView?.toolbarContainerView?.visibility = View.GONE
 +            val emptyHint = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseEmptyHint)
 +            if (emptyHint != null) {
 +                val store = requireContext().components.core.store
 +                viewLifecycleOwner.lifecycleScope.launch {
-+                    store.flow().collect { state ->
++                    store.flow().collect { state: BrowserState ->
 +                        val tab = state.selectedTab
 +                        val url = tab?.content?.url.orEmpty()
 +                        val title = tab?.content?.title?.trim().orEmpty()
 +                        val isEmpty = (url == "about:blank" || url == "about:home" || url.isBlank()) && title.isBlank()
 +                        emptyHint.visibility = if (isEmpty) View.VISIBLE else View.GONE
-+                        emptyHint.bringToFront()
++                        if (isEmpty) emptyHint.bringToFront()
 +                    }
 +                }
 +            }
