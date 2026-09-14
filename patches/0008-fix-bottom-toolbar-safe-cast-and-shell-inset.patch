@@ -1,0 +1,98 @@
+From 2fd27c17806868f799c7cdee8867569be07df316 Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 18:12:03 +0530
+Subject: [PATCH] fix: web rendering under bottom toolbar + safe
+ CoordinatorLayout cast for JusBrowse card
+
+- BaseBrowserFragment safe casts + keep 10dp outer shell (dp10) around card in both dynamic/static branches (top/bottom/left/right margins)
+- BrowserFragment: hide jusBrowsePill (dotpill removal per request), keep clipToOutline
+- prevents card going under toolbar when ToolbarPosition BOTTOM (EngineViewClippingBehavior) and keeps rounded 28dp card with dark #0A0C0F shell visible
+---
+ .../fenix/browser/BaseBrowserFragment.kt      | 31 +++++++++++++------
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  4 ---
+ 2 files changed, 21 insertions(+), 14 deletions(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+index 93c75093cbf6..cea98c42f029 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+@@ -1732,7 +1732,7 @@ abstract class BaseBrowserFragment :
+         if (isToolbarDynamic(context) && webAppToolbarShouldBeVisible) {
+             getEngineView().setDynamicToolbarMaxHeight(topToolbarHeight + bottomToolbarHeight)
+ 
+-            (getSwipeRefreshLayout().layoutParams as CoordinatorLayout.LayoutParams).behavior =
++            (getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams)?.behavior =
+                 EngineViewClippingBehavior(
+                     context = context,
+                     attrs = null,
+@@ -1744,10 +1744,15 @@ abstract class BaseBrowserFragment :
+             // Ensure webpage's bottom elements are aligned to the very bottom of the engineView.
+             getEngineView().setDynamicToolbarMaxHeight(0)
+ 
+-            // Effectively place the engineView on top/below of the toolbars if that is not dynamic.
+-            val swipeRefreshParams = getSwipeRefreshLayout().layoutParams as CoordinatorLayout.LayoutParams
+-            swipeRefreshParams.topMargin = topToolbarHeight
+-            swipeRefreshParams.bottomMargin = bottomToolbarHeight
++            // JusBrowse: keep 10dp outer shell visible around card even when toolbar is top/bottom
++            val dp10 = (10 * context.resources.displayMetrics.density).toInt()
++            val swipeRefreshParams = getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams
++            swipeRefreshParams?.let {
++                it.topMargin = topToolbarHeight + dp10
++                it.bottomMargin = bottomToolbarHeight + dp10
++                it.leftMargin = dp10
++                it.rightMargin = dp10
++            }
+         }
+     }
+ 
+@@ -2159,8 +2164,12 @@ abstract class BaseBrowserFragment :
+                     getEngineView().setDynamicToolbarMaxHeight(toolbarHeights.first + toolbarHeights.second)
+                 }
+             } else {
++                val dp10 = (10 * it.resources.displayMetrics.density).toInt()
+                 (getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
+-                    bottomMargin = toolbarHeights.second
++                    bottomMargin = toolbarHeights.second + dp10
++                    topMargin = toolbarHeights.first + dp10
++                    leftMargin = dp10
++                    rightMargin = dp10
+                 }
+             }
+         }
+@@ -2285,10 +2294,12 @@ abstract class BaseBrowserFragment :
+             collapse()
+             isVisible = false
+         }
+-        val browserEngine = getSwipeRefreshLayout().layoutParams as CoordinatorLayout.LayoutParams
+-        browserEngine.behavior = null
+-        browserEngine.bottomMargin = 0
+-        browserEngine.topMargin = 0
++        val browserEngine = getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams
++        browserEngine?.let {
++            it.behavior = null
++            it.bottomMargin = 0
++            it.topMargin = 0
++        }
+         getSwipeRefreshLayout().apply {
+             translationY = 0f
+             requestLayout()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index ffa05ffe5ba8..90821b8ad450 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -164,12 +164,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+             view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)?.apply {
+                 clipToOutline = true
+                 outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+-                (layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.behavior = null
+             }
+             view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowsePill)?.visibility = View.GONE
+-            view.findViewById<View>(org.mozilla.fenix.R.id.navigation_bar)?.visibility = View.GONE
+-            _browserToolbar?.layout?.visibility = View.GONE
+-            _bottomToolbarContainerView?.toolbarContainerView?.visibility = View.GONE
+             val emptyHint = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseEmptyHint)
+             if (emptyHint != null) {
+                 val store = requireContext().components.core.store
+-- 
+2.55.0
+
