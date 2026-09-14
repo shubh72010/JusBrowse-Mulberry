@@ -1,4 +1,4 @@
-From a6024b28711465815a96865bcaa07ffe21e75877 Mon Sep 17 00:00:00 2001
+From 8dd5763ca9e9290b80543c695d4cd0d8abb7260b Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 16:53:45 +0530
 Subject: [PATCH] JusBrowse: webpage rendering shell - rounded card + bottom
@@ -12,8 +12,8 @@ full web-content focus as in mockup.
  .../mozilla/fenix/browser/BrowserFragment.kt  |  31 +++++
  .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 107 ++++++++++++++++++
  .../main/res/drawable/jusbrowse_card_bg.xml   |   6 +
- .../src/main/res/layout/fragment_browser.xml  |  31 ++++-
- 4 files changed, 173 insertions(+), 2 deletions(-)
+ .../src/main/res/layout/fragment_browser.xml  |  34 +++++-
+ 4 files changed, 176 insertions(+), 2 deletions(-)
  create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
  create mode 100644 mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
 
@@ -193,7 +193,7 @@ index 000000000000..7a9f9fb2fd34
 +    <solid android:color="#1E2022" />
 +</shape>
 diff --git a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
-index 9c07d8aa8c60..e4663c443e4d 100644
+index 9c07d8aa8c60..cf11ed3075b7 100644
 --- a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
 +++ b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
 @@ -18,16 +18,37 @@
@@ -232,23 +232,26 @@ index 9c07d8aa8c60..e4663c443e4d 100644
 +                android:layout_marginBottom="76dp"
 +                android:background="@drawable/jusbrowse_card_bg"
 +                android:clipToOutline="true"
-+                android:elevation="2dp">
++                android:elevation="0dp">
  
                  <mozilla.components.concept.engine.EngineView
                      android:id="@+id/engineView"
-@@ -110,6 +131,12 @@
-                 android:layout_width="match_parent"
-                 android:layout_height="wrap_content" />
+@@ -112,6 +133,15 @@
  
-+            <androidx.compose.ui.platform.ComposeView
-+                android:id="@+id/jusBrowsePill"
-+                android:layout_width="match_parent"
-+                android:layout_height="wrap_content"
-+                android:layout_gravity="bottom|center_horizontal" />
-+
          </androidx.coordinatorlayout.widget.CoordinatorLayout>
  
++        <androidx.compose.ui.platform.ComposeView
++            android:id="@+id/jusBrowsePill"
++            android:layout_width="0dp"
++            android:layout_height="wrap_content"
++            android:elevation="16dp"
++            app:layout_constraintBottom_toBottomOf="parent"
++            app:layout_constraintEnd_toEndOf="parent"
++            app:layout_constraintStart_toStartOf="parent" />
++
      </androidx.constraintlayout.widget.ConstraintLayout>
+ 
+     <org.mozilla.fenix.browser.TabPreview
 -- 
 2.55.0
 
