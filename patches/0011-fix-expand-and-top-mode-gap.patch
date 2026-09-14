@@ -1,0 +1,90 @@
+From 11d187b5a2a5cb06bc0eec10bf953847cc8db323 Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 18:36:29 +0530
+Subject: [PATCH] fix: expand web box when toolbar hidden + fix top mode weird
+ space - dynamic PreDraw margins
+
+- remove static top/bottom+10dp from BaseBrowserFragment dynamic branch (was causing large bottom gap when toolbar hidden and weird top space)
+- BrowserFragment PreDrawListener tracks ScrollableToolbar visible heights via translationY, sets swipeRefresh top/bottom = visible+10dp else 10dp, left/right 10dp -> card expands to 10dp shell when toolbar hidden, stays 10dp above toolbar when visible (both TOP/BOTTOM modes)
+---
+ .../fenix/browser/BaseBrowserFragment.kt      |  7 ----
+ .../mozilla/fenix/browser/BrowserFragment.kt  | 41 ++++++++++++++++++-
+ 2 files changed, 40 insertions(+), 8 deletions(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+index 42ed29eb9907..70bd75cc5d7e 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+@@ -1740,13 +1740,6 @@ abstract class BaseBrowserFragment :
+                     topToolbarHeight = topToolbarHeight,
+                     bottomToolbarHeight = bottomToolbarHeight,
+                 )
+-            val dp10 = (10 * context.resources.displayMetrics.density).toInt()
+-            (getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams)?.let {
+-                it.topMargin = if (topToolbarHeight > 0) topToolbarHeight + dp10 else dp10
+-                it.bottomMargin = if (bottomToolbarHeight > 0) bottomToolbarHeight + dp10 else dp10
+-                it.leftMargin = dp10
+-                it.rightMargin = dp10
+-            }
+         } else {
+             // Ensure webpage's bottom elements are aligned to the very bottom of the engineView.
+             getEngineView().setDynamicToolbarMaxHeight(0)
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index 90821b8ad450..b98dc7bcf264 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -161,11 +161,50 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+         super.initializeUI(view, tab)
+ 
+         runCatching {
+-            view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)?.apply {
++            val swipeRefreshView = view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)
++            swipeRefreshView?.apply {
+                 clipToOutline = true
+                 outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+             }
+             view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowsePill)?.visibility = View.GONE
++            view.post {
++                val parent = binding.browserLayout
++                val dp10 = (10 * resources.displayMetrics.density).toInt()
++                parent.viewTreeObserver.addOnPreDrawListener {
++                    val toolbars = mutableListOf<View>()
++                    fun collect(vg: android.view.ViewGroup) {
++                        for (i in 0 until vg.childCount) {
++                            val child = vg.getChildAt(i)
++                            if (child is mozilla.components.concept.toolbar.ScrollableToolbar) toolbars.add(child)
++                            if (child is android.view.ViewGroup) collect(child)
++                        }
++                    }
++                    collect(parent)
++                    var topVisible = 0
++                    var bottomVisible = 0
++                    for (tb in toolbars) {
++                        if (!tb.isShown) continue
++                        if (tb.top < parent.height / 2) {
++                            topVisible = (tb.height + tb.translationY).toInt().coerceIn(0, tb.height)
++                        } else {
++                            bottomVisible = (tb.height - tb.translationY).toInt().coerceIn(0, tb.height)
++                        }
++                    }
++                    val swipeView = swipeRefreshView ?: return@addOnPreDrawListener true
++                    (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
++                        val newTop = if (topVisible > 0) topVisible + dp10 else dp10
++                        val newBottom = if (bottomVisible > 0) bottomVisible + dp10 else dp10
++                        if (lp.topMargin != newTop || lp.bottomMargin != newBottom || lp.leftMargin != dp10) {
++                            lp.topMargin = newTop
++                            lp.bottomMargin = newBottom
++                            lp.leftMargin = dp10
++                            lp.rightMargin = dp10
++                            swipeView.requestLayout()
++                        }
++                    }
++                    true
++                }
++            }
+             val emptyHint = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseEmptyHint)
+             if (emptyHint != null) {
+                 val store = requireContext().components.core.store
+-- 
+2.55.0
+
