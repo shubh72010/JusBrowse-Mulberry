@@ -1,0 +1,31 @@
+From 71f8340361a6d2e1215ff51c3c7d1f8c7acbf6a7 Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 18:26:21 +0530
+Subject: [PATCH] fix: expand web box when toolbar hidden (top mode) - set 10dp
+ shell margins on expand, keep toolbarHeight+10dp when visible
+
+---
+ .../java/org/mozilla/fenix/browser/BaseBrowserFragment.kt  | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+index 7bd2892b3c0c..42ed29eb9907 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+@@ -2304,8 +2304,11 @@ abstract class BaseBrowserFragment :
+         val browserEngine = getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams
+         browserEngine?.let {
+             it.behavior = null
+-            it.bottomMargin = 0
+-            it.topMargin = 0
++            val dp10 = (10 * (context ?: requireContext()).resources.displayMetrics.density).toInt()
++            it.bottomMargin = dp10
++            it.topMargin = dp10
++            it.leftMargin = dp10
++            it.rightMargin = dp10
+         }
+         getSwipeRefreshLayout().apply {
+             translationY = 0f
+-- 
+2.55.0
+
