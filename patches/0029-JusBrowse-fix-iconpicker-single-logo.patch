@@ -1,0 +1,73 @@
+From 99ec40b8f0e05bed88a1906ae86bdda74991884b Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Tue, 15 Sep 2026 13:07:08 +0530
+Subject: [PATCH] JusBrowse: fix icon picker for single-logo mode
+
+---
+ .../fenix/iconpicker/AppIconRepository.kt     | 36 +------------------
+ .../fenix/iconpicker/ui/AppIconSelection.kt   |  2 +-
+ 2 files changed, 2 insertions(+), 36 deletions(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIconRepository.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIconRepository.kt
+index 75cd46468ee4..2c5a4ae3242d 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIconRepository.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIconRepository.kt
+@@ -33,41 +33,7 @@ class DefaultAppIconRepository(
+         get() = AppIcon.fromString(getCurrentLauncherAliasSuffix())
+ 
+     override val groupedAppIcons: Map<IconGroupTitle, List<AppIcon>>
+-        get() =
+-            mapOf(
+-                IconGroupTitle(R.string.alternative_app_icon_group_featured) to
+-                    listOf(
+-                        AppIcon.AppRetro2004,
+-                        AppIcon.AppPixelated,
+-                        AppIcon.AppCuddling,
+-                        AppIcon.AppPride,
+-                        AppIcon.AppFlaming,
+-                        AppIcon.AppMinimal,
+-                        AppIcon.AppMomo,
+-                        AppIcon.AppCool,
+-                    ),
+-                IconGroupTitle(R.string.alternative_app_icon_group_solid_colors) to
+-                    listOf(
+-                        AppIcon.AppDefault,
+-                        AppIcon.AppSolidLight,
+-                        AppIcon.AppSolidDark,
+-                        AppIcon.AppSolidRed,
+-                        AppIcon.AppSolidGreen,
+-                        AppIcon.AppSolidBlue,
+-                        AppIcon.AppSolidPurple,
+-                        AppIcon.AppSolidPurpleDark,
+-                    ),
+-                IconGroupTitle(R.string.alternative_app_icon_group_gradients) to
+-                    listOf(
+-                        AppIcon.AppGradientSunrise,
+-                        AppIcon.AppGradientGoldenHour,
+-                        AppIcon.AppGradientSunset,
+-                        AppIcon.AppGradientBlueHour,
+-                        AppIcon.AppGradientTwilight,
+-                        AppIcon.AppGradientMidnight,
+-                        AppIcon.AppGradientNorthernLights,
+-                    ),
+-            )
++        get() = mapOf(IconGroupTitle(R.string.alternative_app_icon_group_solid_colors) to listOf(AppIcon.AppDefault))
+ 
+     @VisibleForTesting
+     internal fun getCurrentLauncherAliasSuffix(): String {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/ui/AppIconSelection.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/ui/AppIconSelection.kt
+index b884bdd34250..0ff2045eb1e3 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/ui/AppIconSelection.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/ui/AppIconSelection.kt
+@@ -398,7 +398,7 @@ private fun AppIconOptionPreview(@PreviewParameter(PreviewThemeProvider::class)
+ @Composable
+ private fun AppIconOptionWithSubtitlePreview(@PreviewParameter(PreviewThemeProvider::class) theme: Theme) {
+     FirefoxTheme(theme) {
+-        AppIconOption(AppIcon.AppMomo, false) {}
++        AppIconOption(AppIcon.AppDefault, false) {}
+     }
+ }
+ 
+-- 
+2.55.0
+
