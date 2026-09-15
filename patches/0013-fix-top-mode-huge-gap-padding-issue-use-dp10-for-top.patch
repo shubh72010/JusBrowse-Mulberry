@@ -1,8 +1,8 @@
-From 617e6843c7f7fec5402da35946668af7c1cffe19 Mon Sep 17 00:00:00 2001
+From 2799fba81d3fb9ffd20afdb676f7edf1d365f1bc Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:49:23 +0530
-Subject: [PATCH] fix: top mode huge gap - padding issue, use dp10 for top
- (behavior handles translation), keep bottom dynamic
+Subject: [PATCH 13/18] fix: top mode huge gap - padding issue, use dp10 for
+ top (behavior handles translation), keep bottom dynamic
 
 ---
  .../src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt  | 2 +-

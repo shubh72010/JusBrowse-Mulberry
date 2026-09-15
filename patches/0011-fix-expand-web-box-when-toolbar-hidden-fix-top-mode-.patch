@@ -1,8 +1,8 @@
-From 11d187b5a2a5cb06bc0eec10bf953847cc8db323 Mon Sep 17 00:00:00 2001
+From 0971bc4e7ff68e0f4f5601a5ca0256ab451beebc Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:36:29 +0530
-Subject: [PATCH] fix: expand web box when toolbar hidden + fix top mode weird
- space - dynamic PreDraw margins
+Subject: [PATCH 11/18] fix: expand web box when toolbar hidden + fix top mode
+ weird space - dynamic PreDraw margins
 
 - remove static top/bottom+10dp from BaseBrowserFragment dynamic branch (was causing large bottom gap when toolbar hidden and weird top space)
 - BrowserFragment PreDrawListener tracks ScrollableToolbar visible heights via translationY, sets swipeRefresh top/bottom = visible+10dp else 10dp, left/right 10dp -> card expands to 10dp shell when toolbar hidden, stays 10dp above toolbar when visible (both TOP/BOTTOM modes)

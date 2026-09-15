@@ -1,7 +1,7 @@
-From eb5308aa0523be6ae9ff850b1043ad6de7906f1e Mon Sep 17 00:00:00 2001
+From ee17da536d1f926a7252967d4e320f0253d17848 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Sat, 12 Sep 2026 11:47:10 +0530
-Subject: [PATCH 2/4] JusBrowse: add dot pill overlay (port from Strait
+Subject: [PATCH 02/18] JusBrowse: add dot pill overlay (port from Strait
  SnapPillMenu)
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

@@ -1,8 +1,8 @@
-From 9270f83fec7185f94e635d942fcbc4aac7f79a52 Mon Sep 17 00:00:00 2001
+From 3c7ccf5cecb72154017bc2c12373bdf046564e36 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:00:20 +0530
-Subject: [PATCH] fix: web rendering under bottom toolbar + hide pill (dotpill
- removal per request)
+Subject: [PATCH 07/18] fix: web rendering under bottom toolbar + hide pill
+ (dotpill removal per request)
 
 ---
  .../java/org/mozilla/fenix/browser/BrowserFragment.kt    | 9 +++------

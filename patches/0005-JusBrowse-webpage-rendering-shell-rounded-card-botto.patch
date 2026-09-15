@@ -1,8 +1,8 @@
-From 8dd5763ca9e9290b80543c695d4cd0d8abb7260b Mon Sep 17 00:00:00 2001
+From 0878cbdd35fe6c56239e18024adeb6cc9ce47f16 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 16:53:45 +0530
-Subject: [PATCH] JusBrowse: webpage rendering shell - rounded card + bottom
- title pill
+Subject: [PATCH 05/18] JusBrowse: webpage rendering shell - rounded card +
+ bottom title pill
 
 Matches design: inset rounded engine (28dp, 10dp margins, dark shell
 #0A0C0F) and centered bottom pill showing page title/host (or 'page

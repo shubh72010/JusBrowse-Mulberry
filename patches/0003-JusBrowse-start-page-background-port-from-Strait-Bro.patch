@@ -1,7 +1,7 @@
-From c035ceec5da6e58972e7cf0442625215c2b4f428 Mon Sep 17 00:00:00 2001
+From b75efdb0a925e171d973df549890925d42ee9157 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Sat, 12 Sep 2026 11:47:11 +0530
-Subject: [PATCH 3/4] JusBrowse: start page background (port from Strait
+Subject: [PATCH 03/18] JusBrowse: start page background (port from Strait
  BrowserScreen)
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

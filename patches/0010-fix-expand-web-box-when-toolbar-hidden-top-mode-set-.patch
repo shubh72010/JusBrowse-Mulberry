@@ -1,8 +1,8 @@
-From 71f8340361a6d2e1215ff51c3c7d1f8c7acbf6a7 Mon Sep 17 00:00:00 2001
+From bbec36dd988b7911e017004760f811fa75a25a62 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:26:21 +0530
-Subject: [PATCH] fix: expand web box when toolbar hidden (top mode) - set 10dp
- shell margins on expand, keep toolbarHeight+10dp when visible
+Subject: [PATCH 10/18] fix: expand web box when toolbar hidden (top mode) -
+ set 10dp shell margins on expand, keep toolbarHeight+10dp when visible
 
 ---
  .../java/org/mozilla/fenix/browser/BaseBrowserFragment.kt  | 7 +++++--

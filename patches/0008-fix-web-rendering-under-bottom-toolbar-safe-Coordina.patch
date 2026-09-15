@@ -1,7 +1,7 @@
-From 2fd27c17806868f799c7cdee8867569be07df316 Mon Sep 17 00:00:00 2001
+From 25ad1b1855b7996793e2cb02770f8bd24b1ea681 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:12:03 +0530
-Subject: [PATCH] fix: web rendering under bottom toolbar + safe
+Subject: [PATCH 08/18] fix: web rendering under bottom toolbar + safe
  CoordinatorLayout cast for JusBrowse card
 
 - BaseBrowserFragment safe casts + keep 10dp outer shell (dp10) around card in both dynamic/static branches (top/bottom/left/right margins)

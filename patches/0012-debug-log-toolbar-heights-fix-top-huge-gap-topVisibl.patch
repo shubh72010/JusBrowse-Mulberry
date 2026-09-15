@@ -1,8 +1,8 @@
-From 5774e9b05df18315c639070f167084a50367848d Mon Sep 17 00:00:00 2001
+From 1236c3a5ae63575f6cf9d99480284f7afd1ea540 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:45:10 +0530
-Subject: [PATCH] debug: log toolbar heights + fix top huge gap (topVisible no
- extra dp)
+Subject: [PATCH 12/18] debug: log toolbar heights + fix top huge gap
+ (topVisible no extra dp)
 
 ---
  .../main/java/org/mozilla/fenix/browser/BrowserFragment.kt   | 5 ++++-

@@ -1,0 +1,314 @@
+From 89d3b6da9ce5831c01a89935acc70fe7774e7cc2 Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Tue, 15 Sep 2026 10:20:11 +0530
+Subject: [PATCH 18/18] fix: segmented list right-edge stick, initial placement
+ and lag; shell PDF gap and bottom toolbar clip
+
+---
+ .../fenix/browser/BaseBrowserFragment.kt      |   1 -
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  41 +++--
+ .../mozilla/fenix/jusbrowse/SegmentedList.kt  | 158 +++++++++++-------
+ 3 files changed, 133 insertions(+), 67 deletions(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+index 70bd75cc5d7e..c707b959b9be 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+@@ -1744,7 +1744,6 @@ abstract class BaseBrowserFragment :
+             // Ensure webpage's bottom elements are aligned to the very bottom of the engineView.
+             getEngineView().setDynamicToolbarMaxHeight(0)
+ 
+-            // JusBrowse: keep 10dp outer shell visible around card even when toolbar is top/bottom
+             val dp10 = (10 * context.resources.displayMetrics.density).toInt()
+             val swipeRefreshParams = getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams
+             swipeRefreshParams?.let {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index 856173ab7d25..53e45c4f250f 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -161,7 +161,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+         super.initializeUI(view, tab)
+ 
+         runCatching {
+-            val swipeRefreshView = view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)
++            val swipeRefreshView: View? = view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)
+             swipeRefreshView?.apply {
+                 clipToOutline = true
+                 outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+@@ -170,7 +170,35 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+             view.post {
+                 val parent = binding.browserLayout
+                 val dp10 = (10 * resources.displayMetrics.density).toInt()
++                val store = requireContext().components.core.store
++                fun isPdfTab(): Boolean {
++                    val tab = store.state.selectedTab
++                    return tab?.content?.isPdf == true || tab?.content?.url?.startsWith("content://") == true
++                }
++                // initial 10dp to avoid flash, then PreDraw will handle toolbar
++                (swipeRefreshView?.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
++                    if (lp.topMargin != dp10 || lp.leftMargin != dp10 || lp.rightMargin != dp10) {
++                        lp.topMargin = dp10
++                        lp.leftMargin = dp10
++                        lp.rightMargin = dp10
++                        // bottom handled by PreDraw
++                    }
++                }
+                 parent.viewTreeObserver.addOnPreDrawListener {
++                    val swipeView = swipeRefreshView ?: return@addOnPreDrawListener true
++                    // PDF: shell sits 10dp from screen, no toolbar gap – toolbar draws over shell background
++                    if (isPdfTab()) {
++                        (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
++                            if (lp.topMargin != dp10 || lp.bottomMargin != dp10 || lp.leftMargin != dp10 || lp.rightMargin != dp10) {
++                                lp.topMargin = dp10
++                                lp.bottomMargin = dp10
++                                lp.leftMargin = dp10
++                                lp.rightMargin = dp10
++                                swipeView.requestLayout()
++                            }
++                        }
++                        return@addOnPreDrawListener true
++                    }
+                     val toolbars = mutableListOf<View>()
+                     fun collect(vg: android.view.ViewGroup) {
+                         for (i in 0 until vg.childCount) {
+@@ -180,24 +208,17 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+                         }
+                     }
+                     collect(parent)
+-                    var topVisible = 0
+                     var bottomVisible = 0
+                     for (tb in toolbars) {
+-                        android.util.Log.d("JusBrowseCard", "tb class=${tb.javaClass.simpleName} top=${tb.top} h=${tb.height} trans=${tb.translationY} isShown=${tb.isShown} alpha=${tb.alpha} vis=${tb.visibility}")
+                         if (!tb.isShown) continue
+-                        if (tb.top < parent.height / 2) {
+-                            topVisible = (tb.height + tb.translationY).toInt().coerceIn(0, tb.height)
+-                        } else {
++                        if (tb.top >= parent.height / 2) {
+                             bottomVisible = (tb.height - tb.translationY).toInt().coerceIn(0, tb.height)
+                         }
+                     }
+-                    android.util.Log.d("JusBrowseCard", "calc topVisible=$topVisible bottomVisible=$bottomVisible")
+-                    val swipeView = swipeRefreshView ?: return@addOnPreDrawListener true
+-                    android.util.Log.d("JusBrowseCard", "topVisible=$topVisible bottomVisible=$bottomVisible")
+                     (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
+                         val newTop = dp10
+                         val newBottom = if (bottomVisible > 0) bottomVisible + dp10 else dp10
+-                        if (lp.topMargin != newTop || lp.bottomMargin != newBottom || lp.leftMargin != dp10) {
++                        if (lp.topMargin != newTop || lp.bottomMargin != newBottom || lp.leftMargin != dp10 || lp.rightMargin != dp10) {
+                             lp.topMargin = newTop
+                             lp.bottomMargin = newBottom
+                             lp.leftMargin = dp10
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+index 753300c74e38..d0da30a2a318 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+@@ -117,13 +117,7 @@ fun View.applySegmentedBackground(index: Int, count: Int) {
+         setColor(bgColor)
+     }
+     background = d
+-    val gap = (2 * resources.displayMetrics.density).toInt()
+-    (layoutParams as? RecyclerView.LayoutParams)?.let { lp ->
+-        lp.topMargin = if (index == 0) 0 else gap
+-        lp.bottomMargin = 0
+-        lp.marginStart = (12 * resources.displayMetrics.density).toInt()
+-        lp.marginEnd = (12 * resources.displayMetrics.density).toInt()
+-    }
++    // Option A: no per-child margins – RecyclerView padding (12dp) + ItemDecoration handles insets
+     clipToOutline = true
+     elevation = 0f
+ }
+@@ -137,28 +131,60 @@ fun RecyclerView.applySegmentedDecoration() {
+     val inset = (12 * resources.displayMetrics.density).toInt()
+     setPadding(inset, paddingTop, inset, paddingBottom)
+     clipToPadding = false
++    // ponytail: cache getItem method + category per pos to fix lag and initial placement
++    var cachedMethod: java.lang.reflect.Method? = null
++    var methodTried = false
++    var catCache: BooleanArray? = null
++    var cacheCnt = -1
++    fun ensureCache() {
++        val cnt = adapter?.itemCount ?: 0
++        if (cnt == 0) { catCache = null; cacheCnt = 0; return }
++        if (catCache != null && cacheCnt == cnt) return
++        if (!methodTried) {
++            methodTried = true
++            cachedMethod = runCatching {
++                adapter?.javaClass?.methods?.firstOrNull { it.name == "getItem" && it.parameterCount == 1 }
++                    ?: adapter?.javaClass?.getMethod("getItem", Int::class.javaPrimitiveType)
++            }.getOrNull()
++        }
++        val cat = BooleanArray(cnt)
++        for (p in 0 until cnt) {
++            var isCat = false
++            runCatching {
++                val m = cachedMethod
++                if (m != null) {
++                    val pref = m.invoke(adapter, p)
++                    val n = pref?.javaClass?.name ?: ""
++                    if (n.contains("PreferenceCategory")) isCat = true
++                }
++            }
++            if (!isCat) {
++                runCatching {
++                    val vh = findViewHolderForAdapterPosition(p)
++                    if (vh != null) {
++                        val cname = vh.itemView::class.java.name + " " + vh.toString()
++                        if (cname.contains("Category", ignoreCase = true)) isCat = true
++                    }
++                }
++            }
++            cat[p] = isCat
++        }
++        catCache = cat; cacheCnt = cnt
++    }
+     val isCategoryAt: (Int) -> Boolean = { pos ->
+-        runCatching {
++        val c = catCache
++        if (c != null && pos in c.indices) c[pos]
++        else runCatching {
+             val a = adapter ?: return@runCatching false
+-            // Try PreferenceGroupAdapter.getItem(pos) -> PreferenceCategory
+-            try {
+-                val m = a.javaClass.getMethod("getItem", Int::class.javaPrimitiveType)
++            val m = cachedMethod ?: a.javaClass.methods.firstOrNull { it.name == "getItem" && it.parameterCount == 1 }
++            if (m != null) {
+                 val pref = m.invoke(a, pos)
+-                val name = pref?.javaClass?.name ?: ""
+-                if (name.contains("PreferenceCategory")) return@runCatching true
+-                if (name.contains("PreferenceGroup")) {
+-                    // groups are not categories, but we treat categories only
+-                }
+-            } catch (_: Exception) {}
+-            // Fallback: viewType-based detection — learn category viewTypes from attached holders
+-            val vh = findViewHolderForAdapterPosition(pos)
+-            if (vh != null) {
+-                val cname = vh.itemView::class.java.name + " " + vh.toString()
+-                if (cname.contains("Category", ignoreCase = true)) return@runCatching true
++                if (pref?.javaClass?.name?.contains("PreferenceCategory") == true) return@runCatching true
+             }
+-            // Last fallback: viewType heuristics — category viewType is distinct and often has few instances
++            val vh = findViewHolderForAdapterPosition(pos)
++            if (vh != null && (vh.itemView::class.java.name + " " + vh.toString()).contains("Category", true)) return@runCatching true
+             false
+-        }.getOrElse { false }
++        }.getOrDefault(false)
+     }
+ 
+     addItemDecoration(object : RecyclerView.ItemDecoration() {
+@@ -170,11 +196,12 @@ fun RecyclerView.applySegmentedDecoration() {
+         ) {
+             val pos = parent.getChildAdapterPosition(view)
+             if (pos == RecyclerView.NO_POSITION) return
+-            if (runCatching { isCategoryAt(pos) }.getOrDefault(false)) {
++            ensureCache()
++            if (isCategoryAt(pos)) {
+                 outRect.top = if (pos == 0) 0 else (16 * resources.displayMetrics.density).toInt()
+                 return
+             }
+-            if (pos > 0 && runCatching { isCategoryAt(pos - 1) }.getOrDefault(false)) {
++            if (pos > 0 && isCategoryAt(pos - 1)) {
+                 outRect.top = gap
+                 return
+             }
+@@ -182,49 +209,68 @@ fun RecyclerView.applySegmentedDecoration() {
+         }
+     })
+ 
+-    val applyToChildren: () -> Unit = applyToChildren@{
+-        val cnt = adapter?.itemCount ?: 0
+-        if (cnt == 0) return@applyToChildren
+-        for (i in 0 until childCount) {
+-            val child = getChildAt(i) ?: continue
+-            val pos = getChildAdapterPosition(child)
+-            if (pos == RecyclerView.NO_POSITION) continue
+-            if (isCategoryAt(pos)) {
+-                child.background = null
+-                child.elevation = 0f
+-                (child.layoutParams as? RecyclerView.LayoutParams)?.let { lp ->
+-                    lp.topMargin = if (pos == 0) 0 else (16 * resources.displayMetrics.density).toInt()
+-                    lp.bottomMargin = 0
+-                    lp.marginStart = 0
+-                    lp.marginEnd = 0
++    var pending = false
++    fun scheduleApply() {
++        if (pending) return
++        pending = true
++        post {
++            pending = false
++            ensureCache()
++            val cnt = adapter?.itemCount ?: 0
++            if (cnt == 0) return@post
++            for (i in 0 until childCount) {
++                val child = getChildAt(i) ?: continue
++                val pos = getChildAdapterPosition(child)
++                if (pos == RecyclerView.NO_POSITION) continue
++                if (isCategoryAt(pos)) {
++                    if (child.background != null) child.background = null
++                    child.clipToOutline = false
++                    child.elevation = 0f
++                    continue
+                 }
+-                continue
++                var start = pos
++                while (start > 0 && !isCategoryAt(start - 1)) start--
++                var end = pos
++                while (end < cnt - 1 && !isCategoryAt(end + 1)) end++
++                val sz = end - start + 1
++                val idx = pos - start
++                child.applySegmentedBackground(idx, sz)
+             }
+-            var start = pos
+-            while (start > 0 && !isCategoryAt(start - 1)) start--
+-            var end = pos
+-            while (end < cnt - 1 && !isCategoryAt(end + 1)) end++
+-            val sz = end - start + 1
+-            val idx = pos - start
+-            child.applySegmentedBackground(idx, sz)
+         }
+     }
++
++    val applyToChildren: () -> Unit = { scheduleApply() }
++
+     addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
+         override fun onChildViewAttachedToWindow(view: View) {
++            ensureCache()
+             val pos = getChildAdapterPosition(view)
+-            val cnt = adapter?.itemCount ?: return
+             if (pos == RecyclerView.NO_POSITION) return
+-            view.post { applyToChildren() }
++            val cnt = adapter?.itemCount ?: return
++            if (isCategoryAt(pos)) {
++                if (view.background != null) view.background = null
++                view.clipToOutline = false
++                view.elevation = 0f
++            } else {
++                var start = pos
++                while (start > 0 && !isCategoryAt(start - 1)) start--
++                var end = pos
++                while (end < cnt - 1 && !isCategoryAt(end + 1)) end++
++                view.applySegmentedBackground(pos - start, end - start + 1)
++            }
++            scheduleApply()
+         }
+         override fun onChildViewDetachedFromWindow(view: View) {}
+     })
+     adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+-        override fun onChanged() { post { applyToChildren() } }
+-        override fun onItemRangeInserted(p0: Int, p1: Int) { post { applyToChildren() } }
+-        override fun onItemRangeRemoved(p0: Int, p1: Int) { post { applyToChildren() } }
++        override fun onChanged() { catCache = null; scheduleApply() }
++        override fun onItemRangeInserted(p0: Int, p1: Int) { catCache = null; scheduleApply() }
++        override fun onItemRangeRemoved(p0: Int, p1: Int) { catCache = null; scheduleApply() }
++        override fun onItemRangeMoved(p0: Int, p1: Int, p2: Int) { catCache = null; scheduleApply() }
+     })
+-    viewTreeObserver.addOnGlobalLayoutListener { applyToChildren() }
+-    post { applyToChildren() }
++    // single global listener, not post loop
++    viewTreeObserver.addOnGlobalLayoutListener { scheduleApply() }
++    post { ensureCache(); scheduleApply() }
+ }
+ 
+ private fun View.findAllRecyclerViews(out: MutableList<RecyclerView>) {
+-- 
+2.55.0
+

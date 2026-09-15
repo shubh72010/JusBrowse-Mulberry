@@ -1,7 +1,8 @@
 From 76559599b0a52fa0a4316aae453f51cec02fc2f5 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 19:04:16 +0530
-Subject: [PATCH] JusBrowse: segmented connect list - unified list styling
+Subject: [PATCH 14/18] JusBrowse: segmented connect list - unified list
+ styling
 
 Every list in the app now uses the segmented-connected panel look:
 each row is a Card with surfaceContainerLow + 0dp elevation, 2dp

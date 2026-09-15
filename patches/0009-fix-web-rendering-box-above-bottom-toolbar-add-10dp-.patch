@@ -1,8 +1,8 @@
-From e14020b384c1f1c1b413917da458039477249e12 Mon Sep 17 00:00:00 2001
+From 3bb786fe0592d1c1c831241c00432899efa2469d Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 18:19:23 +0530
-Subject: [PATCH] fix: web rendering box above bottom toolbar - add 10dp shell
- gap in dynamic toolbar branch (was only static)
+Subject: [PATCH 09/18] fix: web rendering box above bottom toolbar - add 10dp
+ shell gap in dynamic toolbar branch (was only static)
 
 ---
  .../java/org/mozilla/fenix/browser/BaseBrowserFragment.kt  | 7 +++++++

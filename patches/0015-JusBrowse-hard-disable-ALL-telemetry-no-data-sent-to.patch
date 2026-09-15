@@ -1,8 +1,8 @@
 From bfe67e455d22a27ff0bc3c9270ec9683af283764 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Mon, 14 Sep 2026 19:31:38 +0530
-Subject: [PATCH] =?UTF-8?q?JusBrowse:=20hard-disable=20ALL=20telemetry=20?=
- =?UTF-8?q?=E2=80=94=20no=20data=20sent=20to=20Mozilla?=
+Subject: [PATCH 15/18] =?UTF-8?q?JusBrowse:=20hard-disable=20ALL=20telemet?=
+ =?UTF-8?q?ry=20=E2=80=94=20no=20data=20sent=20to=20Mozilla?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

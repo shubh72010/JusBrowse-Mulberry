@@ -1,7 +1,7 @@
-From a9696230e49de33557e2499570feca5d14db5dfb Mon Sep 17 00:00:00 2001
+From 97db4fb631dc21b77e85766b22298192a07ac745 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Sat, 12 Sep 2026 12:31:19 +0530
-Subject: [PATCH 4/4] JusBrowse: wire dot pill and startpage background
+Subject: [PATCH 04/18] JusBrowse: wire dot pill and startpage background
 
 - HomeFragment: overlay JusBrowseDotPill in scaffold Box
 - Homepage: add JusBrowseStartPageBackground WALLPAPER_BLUE1
