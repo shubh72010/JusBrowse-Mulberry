@@ -1,48 +1,61 @@
+<div align="center">
+
 # JusBrowse
 
+[![Typing](https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=22&center=true&vCenter=true&width=600&lines=Private.+Themed.+Telemetry-free.;Firefox+Android%2C+reimagined.)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
+
 [![Download](https://img.shields.io/github/v/release/shubh72010/JusBrowse-Mulberry?include_prereleases&label=download)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
-[![Patches](https://img.shields.io/badge/patches-13-blue)](#repository-layout)
+![Downloads](https://img.shields.io/github/downloads/shubh72010/JusBrowse-Mulberry/total?label=downloads)
+![Patches](https://img.shields.io/badge/patches-13-blue)
+![Platform](https://img.shields.io/badge/platform-Android-green)
+![Status](https://img.shields.io/badge/status-pre--alpha-orange)
 
-> JusBrowse = Mozilla Firefox Android + a small JusDots downstream patchset.
-> Not a giant fork — a well-isolated delta against mozilla-central.
+**Mozilla Firefox Android + a small JusDots patchset — not a giant fork, a well-isolated delta.**
 
-A private, themed, telemetry-free Firefox for Android with its own identity
-(`com.jusdots.jusbrowse`), rounded web-card shell, color palettes, and bundled
-wallpapers.
+<a href="https://github.com/shubh72010/JusBrowse-Mulberry/releases"><b>⬇ Get JusBrowse</b></a>
 
-## Download
+</div>
 
-Get the latest **Pre-Alpha** from
+---
+
+## ✨ Features
+
+| | What you get |
+|---|---|
+| 🃏 | **Web-card shell** — pages render inside an inset rounded card above the toolbar |
+| 🎨 | **6 color palettes** — Catppuccin, Tokyo Night, Gruvbox, Nord, Dracula, Rosé Pine, with matching launcher icons |
+| 🖼️ | **Bundled wallpapers** — native picker with included art sets |
+| 🔧 | **Toolbar your way** — second shortcut slot, background toggle, top/bottom placement |
+| 🔇 | **Zero telemetry** — Glean/adjust/metrics hard-disabled, nothing phones home |
+| 🆔 | **Own identity** — `com.jusdots.jusbrowse`, JusBrowse branding in all locales |
+
+## ⬇ Download
+
+Grab the latest **Pre-Alpha** from
 [Releases](https://github.com/shubh72010/JusBrowse-Mulberry/releases):
 
-| Device | File |
-|--------|------|
+| Your device | File |
+|-------------|------|
 | Most modern phones (arm64) | `fenix-arm64-v8a-release.apk` |
 | Older 32-bit phones (armv7) | `fenix-armeabi-v7a-release.apk` |
 
-Install the APK (allow *Install unknown apps* when prompted). Updates install
-over the previous version — same signing key, your data is kept.
+Allow *Install unknown apps* when prompted. Updates install over the previous
+version — same signing key, your data is kept.
 
-## Features
+## ⚠️ Known limitations
 
-- **Web-card shell** — pages render inside an inset rounded card above the toolbar
-- **6 color palettes** — Catppuccin, Tokyo Night, Gruvbox, Nord, Dracula, Rosé Pine, with matching launcher icons
-- **Bundled wallpapers** — native picker with included art sets
-- **Toolbar your way** — second shortcut slot, background toggle, top/bottom placement
-- **Zero telemetry** — Glean/adjust/metrics hard-disabled, nothing phones home to Mozilla
-- **Own identity** — `com.jusdots.jusbrowse`, JusBrowse branding throughout, all locales
-
-## Known limitations (pre-alpha)
-
-- **Passkeys**: creation usually fails until the release package is enrolled in
-  Google's FIDO2 allowlist (works only on sites publishing `assetlinks.json`
-  for this package). Tracked in `handoff.md`.
-- Expect rough edges — bug reports welcome via
+- **Passkeys** usually fail until the release package is enrolled in Google's
+  FIDO2 allowlist (works only on sites publishing `assetlinks.json` for this
+  package). Tracked in `handoff.md`.
+- Pre-alpha — expect rough edges. Reports welcome via
   [Issues](https://github.com/shubh72010/JusBrowse-Mulberry/issues).
 
 ---
 
-## For developers
+<details>
+<summary><b>🛠 For developers</b> — patch-stack architecture, build, contributing</summary>
+
+<br>
 
 Mozilla moved Firefox Android (Fenix, Android Components, GeckoView) into
 **mozilla-central** (`mobile/android/`). JusBrowse tracks upstream as a
@@ -99,9 +112,6 @@ JusBrowse-Mul/
 ./jusbrowse bootstrap   # fetch upstream at pinned rev + apply patches
 ./jusbrowse build       # ./mach gradle fenix:assembleDebug
 # artifact: source/mozilla-central/obj-*/gradle/build/.../apk/debug/
-
-# verify a patch is present
-grep -r "JusBrowse" source/mozilla-central/mobile/android/fenix/app/src/main/res/values/static_strings.xml
 ```
 
 ### Making a patch (one at a time)
@@ -146,3 +156,5 @@ Instead: *"patch 0005 no longer applies — inspect old vs new upstream,
 preserve behavior, update only that patch"*
 
 Bounded problem → debuggable, reviewable, rebaseable.
+
+</details>
