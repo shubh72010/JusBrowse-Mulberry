@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero.svg" width="100%" alt="JusBrowse — Firefox Android, reimagined" />
+<img src="assets/banner.jpeg" width="100%" alt="JusBrowse Mulberry" />
 
 [![Download](https://img.shields.io/github/v/release/shubh72010/JusBrowse-Mulberry?include_prereleases&label=download&color=A6E3A1)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
 ![Downloads](https://img.shields.io/github/downloads/shubh72010/JusBrowse-Mulberry/total?label=downloads)
