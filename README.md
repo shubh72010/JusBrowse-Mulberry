@@ -1,14 +1,55 @@
-# JusBrowse — Firefox Android Patch-Based Architecture
+# JusBrowse
 
-> JusBrowse = Mozilla Firefox Android + JusDots downstream patchset  
-> Not a giant fork — a small, well-isolated delta against mozilla-central.
+[![Download](https://img.shields.io/github/v/release/shubh72010/JusBrowse-Mulberry?include_prereleases&label=download)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
+[![Patches](https://img.shields.io/badge/patches-13-blue)](#repository-layout)
 
-Mozilla moved Firefox Android (Fenix, Android Components, GeckoView) into **mozilla-central** (`mobile/android/`). JusBrowse tracks upstream as a **disposable source tree** plus a **patch series**.
+> JusBrowse = Mozilla Firefox Android + a small JusDots downstream patchset.
+> Not a giant fork — a well-isolated delta against mozilla-central.
 
-## Architecture
+A private, themed, telemetry-free Firefox for Android with its own identity
+(`com.jusdots.jusbrowse`), rounded web-card shell, color palettes, and bundled
+wallpapers.
+
+## Download
+
+Get the latest **Pre-Alpha** from
+[Releases](https://github.com/shubh72010/JusBrowse-Mulberry/releases):
+
+| Device | File |
+|--------|------|
+| Most modern phones (arm64) | `fenix-arm64-v8a-release.apk` |
+| Older 32-bit phones (armv7) | `fenix-armeabi-v7a-release.apk` |
+
+Install the APK (allow *Install unknown apps* when prompted). Updates install
+over the previous version — same signing key, your data is kept.
+
+## Features
+
+- **Web-card shell** — pages render inside an inset rounded card above the toolbar
+- **6 color palettes** — Catppuccin, Tokyo Night, Gruvbox, Nord, Dracula, Rosé Pine, with matching launcher icons
+- **Bundled wallpapers** — native picker with included art sets
+- **Toolbar your way** — second shortcut slot, background toggle, top/bottom placement
+- **Zero telemetry** — Glean/adjust/metrics hard-disabled, nothing phones home to Mozilla
+- **Own identity** — `com.jusdots.jusbrowse`, JusBrowse branding throughout, all locales
+
+## Known limitations (pre-alpha)
+
+- **Passkeys**: creation usually fails until the release package is enrolled in
+  Google's FIDO2 allowlist (works only on sites publishing `assetlinks.json`
+  for this package). Tracked in `handoff.md`.
+- Expect rough edges — bug reports welcome via
+  [Issues](https://github.com/shubh72010/JusBrowse-Mulberry/issues).
+
+---
+
+## For developers
+
+Mozilla moved Firefox Android (Fenix, Android Components, GeckoView) into
+**mozilla-central** (`mobile/android/`). JusBrowse tracks upstream as a
+**disposable source tree** plus a **patch series**:
 
 ```
-Mozilla Central (hg.mozilla.org / gecko-dev mirror)
+Mozilla Central (gecko-dev mirror)
       ↓  clean checkout at pinned revision
 JusBrowse patch stack  (patches/*.patch)
       ↓  git am
@@ -18,16 +59,17 @@ JusBrowse APK
 ```
 
 Source tree is **disposable**:
+
 ```sh
 rm -rf source/mozilla-central
 ./jusbrowse bootstrap   # re-creates it
 ```
 
-## Repository Layout
+### Repository layout
 
 ```
 JusBrowse-Mul/
-├── patches/                  # 13 logical patches (lexicographic order = apply order)
+├── patches/            # 13 logical patches (lexicographic order = apply order)
 │   ├── 0001-...-branding-rename-app_name.patch
 │   ├── 0002-...-startpage-background-home-wiring.patch
 │   ├── 0003-...-web-rendering-shell-...-always-static.patch
@@ -41,101 +83,66 @@ JusBrowse-Mul/
 │   ├── 0011-...-application-identity-release-signing.patch
 │   ├── 0012-...-toolbar-background-toggle-defaults.patch
 │   ├── 0013-...-UI-color-palettes-....patch
-│   └── README.md             # per-patch table + policy
+│   └── README.md       # per-patch table + policy
 ├── config/
-│   ├── mozconfig             # copied to source/mozilla-central/mozconfig before build
-│   └── upstream.yml          # pinned mozilla-central revision
-├── scripts/
-│   ├── bootstrap.sh          # fetch + apply
-│   ├── fetch-upstream.sh     # clone/fetch mozilla-central at pinned rev
-│   ├── apply-patches.sh      # git am patches/*.patch
-│   ├── refresh-patches.sh    # git format-patch base..HEAD → patches/
-│   ├── update-upstream.sh    # try patches against newer rev
-│   └── build.sh              # ./mach gradle fenix:assembleDebug
-├── jusbrowse                 # CLI: ./jusbrowse {bootstrap,fetch,apply,build,update,clean}
-└── source/                   # DISPOSABLE — gitignored, never commit
-    └── mozilla-central/      # fresh checkout + applied patches
+│   ├── mozconfig       # copied to source/mozilla-central/mozconfig before build
+│   └── upstream.yml    # pinned mozilla-central revision
+├── scripts/            # bootstrap / fetch / apply / refresh / update / build
+├── jusbrowse           # CLI: ./jusbrowse {bootstrap,fetch,apply,build,update,clean}
+└── source/             # DISPOSABLE — gitignored, never commit
+    └── mozilla-central/
 ```
 
-## Quick Start — Phase 1 Proof of Concept
+### Quick start
 
 ```sh
-# 1. Fetch upstream at pinned revision
-./jusbrowse bootstrap
-# or step by step:
-./scripts/fetch-upstream.sh
-./scripts/apply-patches.sh
+./jusbrowse bootstrap   # fetch upstream at pinned rev + apply patches
+./jusbrowse build       # ./mach gradle fenix:assembleDebug
+# artifact: source/mozilla-central/obj-*/gradle/build/.../apk/debug/
 
-# 2. Build vanilla+patched Fenix
-./jusbrowse build
-# artifact: source/mozilla-central/mobile/android/fenix/app/build/outputs/apk/
-
-# 3. Verify patch is present
+# verify a patch is present
 grep -r "JusBrowse" source/mozilla-central/mobile/android/fenix/app/src/main/res/values/static_strings.xml
-
-# 4. Prove disposable tree
-rm -rf source/mozilla-central
-./jusbrowse bootstrap
-./jusbrowse build   # same result, patch reapplied
 ```
 
-## Making a Patch (one at a time)
+### Making a patch (one at a time)
 
 ```sh
 cd source/mozilla-central
-git checkout <pinned-revision>   # from config/upstream.yml
-
 # ONE focused change, e.g. toolbar behavior
-# edit mobile/android/fenix/.../Toolbar.kt
-git add mobile/android/fenix/...
-git commit -m "JusBrowse: change toolbar behavior"
-
-# export as patch (outside)
+git add mobile/android/fenix/... && git commit -m "JusBrowse: change toolbar behavior"
 git format-patch -1 HEAD -o ../../patches/
-cd ../..
-# rename to next number: 0002-jusbrowse-toolbar.patch
+cd ../..   # rename to next number: 0014-jusbrowse-*.patch
 ```
 
-Rules per patch:
-- Only files for that feature
-- No GeckoView changes unless required
-- No unrelated refactor
-- Must be reversible (`git am` / `git am --abort`)
+Rules per patch: only files for that feature, no GeckoView changes unless
+required, no unrelated refactor, must be reversible.
 
-## Updating Upstream
+### Updating upstream
 
 ```sh
 ./jusbrowse update              # tries origin/master
 ./jusbrowse update <rev>        # tries specific rev
-
-# on conflict:
-# ✓ 0001-branding
-# ✓ 0002-app-name
-# ✗ 0003-toolbar  CONFLICT  → fix only that patch
+# on conflict, fix only the failing patch number
 ```
 
 `config/upstream.yml` is updated **only after** patches + build succeed.
 
-## CI (concept)
+### Patch map
 
-Scheduled job: fetch → apply → build. Success = green; conflict = report failing patch number. See `.github/workflows/ci.yml`.
+| Area | Patches |
+|------|---------|
+| Shell / start | `0001` app_name, `0002` startpage bg, `0003` web shell |
+| Branding | `0006` strings+locales, `0009` wordmark, `0010` single-logo purge |
+| UI | `0004` segmented lists, `0007` 2nd shortcut, `0008` wallpapers, `0012` toolbar toggle, `0013` palettes |
+| Privacy | `0005` telemetry hard-disable |
+| Identity | `0011` applicationId + release signing |
 
-## Phases (final patch mapping)
+See `patches/README.md` for the full per-patch table.
 
-| Phase | Patches |
-|-------|---------|
-| 1 — POC / shell | `0001` app_name, `0002` startpage bg, `0003` web shell (always-static card) |
-| 2 — Branding | `0006` strings+locales, `0009` wordmark, `0010` single-logo purge |
-| 3 — UI | `0004` segmented lists, `0007` 2nd toolbar shortcut, `0008` wallpapers, `0012` toolbar toggle, `0013` palettes |
-| 4 — Privacy | `0005` telemetry hard-disable |
-| 5 — Identity | `0011` applicationId + release signing |
+### Why this works for AI agents
 
-Each phase is small focused patches, never one giant fork. See
-`patches/README.md` for the full per-patch table.
-
-## Why this works for AI agents
-
-Never: "understand all of mozilla-central and turn it into JusBrowse"  
-Instead: "patch 0005 no longer applies — inspect old vs new upstream, preserve behavior, update only that patch"
+Never: *"understand all of mozilla-central and turn it into JusBrowse"*
+Instead: *"patch 0005 no longer applies — inspect old vs new upstream,
+preserve behavior, update only that patch"*
 
 Bounded problem → debuggable, reviewable, rebaseable.
