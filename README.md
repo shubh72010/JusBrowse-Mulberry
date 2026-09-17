@@ -8,6 +8,7 @@
 ![Patches](https://img.shields.io/badge/patches-13-blue)
 ![Platform](https://img.shields.io/badge/platform-Android-green)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
+![License](https://img.shields.io/badge/license-MPL--2.0-brightgreen)
 
 **Mozilla Firefox Android + a small JusDots patchset — not a giant fork, a well-isolated delta.**
 
