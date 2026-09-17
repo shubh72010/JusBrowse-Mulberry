@@ -1,0 +1,1800 @@
+From fdc259f7c81a04284812ce9678dd8e8cc4e7049f Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Thu, 17 Sep 2026 13:39:21 +0530
+Subject: [PATCH 13/13] JusBrowse: UI color palettes + matching wallpapers and
+ icons
+
+Catppuccin/TokyoNight/Gruvbox/Nord/Dracula/RosePine themes:
+WallpapersUseCases entries, FirefoxTheme/ThemeManager overlays,
+per-palette launcher icons, accent containers, restart confirmation.
+(Status-bar background toggle experiment added then removed; not present.)
+---
+ .../fenix/app/src/main/AndroidManifest.xml    | 103 +++++++
+ .../jusbrowse_wallpapers/catppuccin.webp      | Bin 0 -> 3732 bytes
+ .../assets/jusbrowse_wallpapers/dracula.webp  | Bin 0 -> 3916 bytes
+ .../assets/jusbrowse_wallpapers/gruvbox.webp  | Bin 0 -> 4306 bytes
+ .../assets/jusbrowse_wallpapers/nord.webp     | Bin 0 -> 3592 bytes
+ .../assets/jusbrowse_wallpapers/rosepine.webp | Bin 0 -> 3936 bytes
+ .../jusbrowse_wallpapers/tokyonight.webp      | Bin 0 -> 3830 bytes
+ .../org/mozilla/fenix/iconpicker/AppIcon.kt   |  72 +++++
+ .../fenix/settings/CustomizationFragment.kt   |  40 +++
+ .../org/mozilla/fenix/theme/FirefoxTheme.kt   |  29 +-
+ .../mozilla/fenix/theme/JusBrowsePalettes.kt  | 229 +++++++++++++++
+ .../org/mozilla/fenix/theme/ThemeManager.kt   |  19 +-
+ .../java/org/mozilla/fenix/utils/Settings.kt  |   6 +
+ .../fenix/wallpapers/WallpapersUseCases.kt    |   6 +
+ .../drawable/ic_launcher_foreground_light.xml |  47 +++
+ .../mipmap-anydpi/ic_launcher_catppuccin.xml  |   6 +
+ .../res/mipmap-anydpi/ic_launcher_dracula.xml |   6 +
+ .../res/mipmap-anydpi/ic_launcher_gruvbox.xml |   6 +
+ .../res/mipmap-anydpi/ic_launcher_nord.xml    |   6 +
+ .../mipmap-anydpi/ic_launcher_rosepine.xml    |   6 +
+ .../mipmap-anydpi/ic_launcher_tokyonight.xml  |   6 +
+ .../fenix/app/src/main/res/values/colors.xml  |  97 ++++++
+ .../src/main/res/values/preference_keys.xml   |   8 +
+ .../fenix/app/src/main/res/values/strings.xml |  22 ++
+ .../fenix/app/src/main/res/values/styles.xml  | 276 ++++++++++++++++++
+ .../res/xml/customization_preferences.xml     |  27 ++
+ 26 files changed, 1005 insertions(+), 12 deletions(-)
+ create mode 100644 mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/catppuccin.webp
+ create mode 100644 mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/dracula.webp
+ create mode 100644 mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/gruvbox.webp
+ create mode 100644 mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/nord.webp
+ create mode 100644 mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/rosepine.webp
+ create mode 100644 mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/tokyonight.webp
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/JusBrowsePalettes.kt
+ create mode 100644 mobile/android/fenix/app/src/main/res/drawable/ic_launcher_foreground_light.xml
+ create mode 100644 mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_catppuccin.xml
+ create mode 100644 mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_dracula.xml
+ create mode 100644 mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_gruvbox.xml
+ create mode 100644 mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_nord.xml
+ create mode 100644 mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_rosepine.xml
+ create mode 100644 mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_tokyonight.xml
+
+diff --git a/mobile/android/fenix/app/src/main/AndroidManifest.xml b/mobile/android/fenix/app/src/main/AndroidManifest.xml
+index 57ded2c68516..90de5e2feafe 100644
+--- a/mobile/android/fenix/app/src/main/AndroidManifest.xml
++++ b/mobile/android/fenix/app/src/main/AndroidManifest.xml
+@@ -104,6 +104,109 @@
+                 android:resource="@xml/shortcuts" />
+         </activity-alias>
+ 
++        <!-- JusBrowse: palette launcher icons, enabled when a color palette is selected -->
++        <activity-alias
++            android:name="${applicationId}.AppCatppuccin"
++            android:exported="true"
++            android:enabled="false"
++            android:icon="@mipmap/ic_launcher_catppuccin"
++            android:targetActivity="HomeActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++
++            <meta-data
++                android:name="android.app.shortcuts"
++                android:resource="@xml/shortcuts" />
++        </activity-alias>
++
++        <activity-alias
++            android:name="${applicationId}.AppTokyoNight"
++            android:exported="true"
++            android:enabled="false"
++            android:icon="@mipmap/ic_launcher_tokyonight"
++            android:targetActivity="HomeActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++
++            <meta-data
++                android:name="android.app.shortcuts"
++                android:resource="@xml/shortcuts" />
++        </activity-alias>
++
++        <activity-alias
++            android:name="${applicationId}.AppGruvbox"
++            android:exported="true"
++            android:enabled="false"
++            android:icon="@mipmap/ic_launcher_gruvbox"
++            android:targetActivity="HomeActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++
++            <meta-data
++                android:name="android.app.shortcuts"
++                android:resource="@xml/shortcuts" />
++        </activity-alias>
++
++        <activity-alias
++            android:name="${applicationId}.AppNord"
++            android:exported="true"
++            android:enabled="false"
++            android:icon="@mipmap/ic_launcher_nord"
++            android:targetActivity="HomeActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++
++            <meta-data
++                android:name="android.app.shortcuts"
++                android:resource="@xml/shortcuts" />
++        </activity-alias>
++
++        <activity-alias
++            android:name="${applicationId}.AppDracula"
++            android:exported="true"
++            android:enabled="false"
++            android:icon="@mipmap/ic_launcher_dracula"
++            android:targetActivity="HomeActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++
++            <meta-data
++                android:name="android.app.shortcuts"
++                android:resource="@xml/shortcuts" />
++        </activity-alias>
++
++        <activity-alias
++            android:name="${applicationId}.AppRosePine"
++            android:exported="true"
++            android:enabled="false"
++            android:icon="@mipmap/ic_launcher_rosepine"
++            android:targetActivity="HomeActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++
++            <meta-data
++                android:name="android.app.shortcuts"
++                android:resource="@xml/shortcuts" />
++        </activity-alias>
++
+         <!-- JusBrowse: single logo only (SVG+PNG), alternative icons removed -->
+           Fennec declared entry for homescreen pinned shortcuts.
+         -->
+diff --git a/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/catppuccin.webp b/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/catppuccin.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b3183df06426c9f44aaae4da462caa8ccaaa601d
+GIT binary patch
+literal 3732
+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
+aX;55tb({US<X<5o3;=-LnZGiB$NvD!J2m<M
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/dracula.webp b/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/dracula.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0dbdfe9e54e98bcc9faafe1be6411ed12c1299f9
+GIT binary patch
+literal 3916
+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
+ae>YA=^2o0vpO6ibLVx(MG0GwU0RI6)vwn^M
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/gruvbox.webp b/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/gruvbox.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..e97f830491cbdf450bdb7420c8cd2e6e220bcddc
+GIT binary patch
+literal 4306
+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
+X;>N`7pzMA8pPT6aWWfCY?eTvBQ0V>M
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/nord.webp b/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/nord.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..db22bdc606a6654a59cf2a6847c05872cec8337c
+GIT binary patch
+literal 3592
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/rosepine.webp b/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/rosepine.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..4de815bab57159b50ad370b3aff9c419a85a0063
+GIT binary patch
+literal 3936
+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
+A+yDRo
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/tokyonight.webp b/mobile/android/fenix/app/src/main/assets/jusbrowse_wallpapers/tokyonight.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce013c3a408f3fde899edd30f36263f4918c9532
+GIT binary patch
+literal 3830
+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
+L6!ahN|Hgj->z+Nu
+
+literal 0
+HcmV?d00001
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIcon.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIcon.kt
+index a799d17dcbc1..b12fd8c97a06 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIcon.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/iconpicker/AppIcon.kt
+@@ -4,11 +4,15 @@
+ 
+ package org.mozilla.fenix.iconpicker
+ 
++import android.content.ComponentName
++import android.content.Context
++import android.content.pm.PackageManager
+ import androidx.annotation.ColorRes
+ import androidx.annotation.DrawableRes
+ import androidx.annotation.StringRes
+ import mozilla.components.ui.colors.R as colorsR
+ import org.mozilla.fenix.R
++import org.mozilla.fenix.theme.JusBrowsePalettes
+ 
+ /**
+  * Enum that represents app launcher icons available for the user to set as an alternative launcher icon. It is based
+@@ -38,6 +42,42 @@ enum class AppIcon(
+         aliasSuffix = "App",
+         iconBackground = IconBackground.Color(colorResId = R.color.ic_launcher_background),
+         titleId = R.string.alternative_app_icon_option_default,
++    ),
++    AppCatppuccin(
++        aliasSuffix = "AppCatppuccin",
++        iconForegroundId = R.drawable.ic_launcher_foreground_light,
++        iconBackground = IconBackground.Color(colorResId = R.color.jusbrowse_palette_catppuccin_surface),
++        titleId = R.string.preference_palette_catppuccin,
++    ),
++    AppTokyoNight(
++        aliasSuffix = "AppTokyoNight",
++        iconForegroundId = R.drawable.ic_launcher_foreground_light,
++        iconBackground = IconBackground.Color(colorResId = R.color.jusbrowse_palette_tokyonight_surface),
++        titleId = R.string.preference_palette_tokyonight,
++    ),
++    AppGruvbox(
++        aliasSuffix = "AppGruvbox",
++        iconForegroundId = R.drawable.ic_launcher_foreground_light,
++        iconBackground = IconBackground.Color(colorResId = R.color.jusbrowse_palette_gruvbox_surface),
++        titleId = R.string.preference_palette_gruvbox,
++    ),
++    AppNord(
++        aliasSuffix = "AppNord",
++        iconForegroundId = R.drawable.ic_launcher_foreground_light,
++        iconBackground = IconBackground.Color(colorResId = R.color.jusbrowse_palette_nord_surface),
++        titleId = R.string.preference_palette_nord,
++    ),
++    AppDracula(
++        aliasSuffix = "AppDracula",
++        iconForegroundId = R.drawable.ic_launcher_foreground_light,
++        iconBackground = IconBackground.Color(colorResId = R.color.jusbrowse_palette_dracula_surface),
++        titleId = R.string.preference_palette_dracula,
++    ),
++    AppRosePine(
++        aliasSuffix = "AppRosePine",
++        iconForegroundId = R.drawable.ic_launcher_foreground_light,
++        iconBackground = IconBackground.Color(colorResId = R.color.jusbrowse_palette_rosepine_surface),
++        titleId = R.string.preference_palette_rosepine,
+     );
+ 
+     /** [AppIcon] helper object */
+@@ -73,3 +113,35 @@ sealed class IconBackground {
+      */
+     data class Drawable(@param:DrawableRes val drawableResId: Int) : IconBackground()
+ }
++
++/**
++ * Switches the launcher icon to match the given JusBrowse color palette.
++ * Unknown values fall back to the default icon.
++ */
++fun Context.applyPaletteLauncherIcon(palette: String) {
++    val target =
++        when (palette) {
++            JusBrowsePalettes.CATPPUCCIN -> AppIcon.AppCatppuccin.aliasSuffix
++            JusBrowsePalettes.TOKYO_NIGHT -> AppIcon.AppTokyoNight.aliasSuffix
++            JusBrowsePalettes.GRUVBOX -> AppIcon.AppGruvbox.aliasSuffix
++            JusBrowsePalettes.NORD -> AppIcon.AppNord.aliasSuffix
++            JusBrowsePalettes.DRACULA -> AppIcon.AppDracula.aliasSuffix
++            JusBrowsePalettes.ROSE_PINE -> AppIcon.AppRosePine.aliasSuffix
++            else -> AppIcon.AppDefault.aliasSuffix
++        }
++    val packageManager = packageManager
++    packageManager.setComponentEnabledSetting(
++        ComponentName(packageName, "$packageName.$target"),
++        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
++        PackageManager.DONT_KILL_APP,
++    )
++    for (icon in AppIcon.entries) {
++        if (icon.aliasSuffix != target) {
++            packageManager.setComponentEnabledSetting(
++                ComponentName(packageName, "$packageName.${icon.aliasSuffix}"),
++                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
++                PackageManager.DONT_KILL_APP,
++            )
++        }
++    }
++}
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt
+index 812e109896e8..1862ffc4ff28 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt
+@@ -10,6 +10,7 @@ import android.os.Build
+ import android.os.Build.VERSION.SDK_INT
+ import android.os.Bundle
+ import android.view.View
++import androidx.appcompat.app.AlertDialog
+ import androidx.appcompat.app.AppCompatDelegate
+ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.lifecycleScope
+@@ -36,9 +37,11 @@ import org.mozilla.fenix.ext.isTallWindow
+ import org.mozilla.fenix.ext.isWideWindow
+ import org.mozilla.fenix.ext.requireComponents
+ import org.mozilla.fenix.ext.showToolbar
++import org.mozilla.fenix.iconpicker.applyPaletteLauncherIcon
+ import org.mozilla.fenix.settings.settingssearch.PreferenceFileInformation.CustomizationPreferences
+ import org.mozilla.fenix.settings.settingssearch.SettingsSearchItem
+ import org.mozilla.fenix.settings.settingssearch.SettingsSearchProvider
++import org.mozilla.fenix.theme.JusBrowsePalettes
+ import org.mozilla.fenix.translations.TranslationsEnabledSettings
+ import org.mozilla.fenix.utils.Settings
+ import org.mozilla.fenix.utils.view.addToRadioGroup
+@@ -115,6 +118,7 @@ class CustomizationFragment : PreferenceFragmentCompat(), SystemInsetsPaddedFrag
+         bindLightTheme()
+         bindAutoBatteryTheme()
+         setupRadioGroups()
++        setupColorPalette()
+         val tabletAndTabStripEnabled = Settings(requireContext()).isTabStripEnabled
+         updateToolbarCategoryBasedOnTabStrip(tabletAndTabStripEnabled)
+         setupToolbarBackground()
+@@ -333,6 +337,42 @@ class CustomizationFragment : PreferenceFragmentCompat(), SystemInsetsPaddedFrag
+         addToRadioGroup(topPreference, bottomPreference)
+     }
+ 
++    private fun setupColorPalette() {
++        val radios =
++            mapOf(
++                R.string.pref_key_theme_palette_default to JusBrowsePalettes.DEFAULT,
++                R.string.pref_key_theme_palette_catppuccin to JusBrowsePalettes.CATPPUCCIN,
++                R.string.pref_key_theme_palette_tokyonight to JusBrowsePalettes.TOKYO_NIGHT,
++                R.string.pref_key_theme_palette_gruvbox to JusBrowsePalettes.GRUVBOX,
++                R.string.pref_key_theme_palette_nord to JusBrowsePalettes.NORD,
++                R.string.pref_key_theme_palette_dracula to JusBrowsePalettes.DRACULA,
++                R.string.pref_key_theme_palette_rosepine to JusBrowsePalettes.ROSE_PINE,
++            ).map { (key, palette) ->
++                requirePreference<RadioButtonPreference>(key).apply {
++                    setCheckedWithoutClickListener(requireComponents.settings.themePalette == palette)
++                    onClickListener {
++                        if (requireComponents.settings.themePalette == palette) {
++                            activity?.recreate()
++                        } else {
++                            AlertDialog.Builder(requireContext())
++                                .setTitle(R.string.preference_palette_restart_title)
++                                .setMessage(R.string.preference_palette_restart_message)
++                                .setPositiveButton(R.string.preference_palette_restart_confirm) { _, _ ->
++                                    requireComponents.settings.themePalette = palette
++                                    requireContext().applyPaletteLauncherIcon(palette)
++                                    activity?.recreate()
++                                }
++                                .setNegativeButton(android.R.string.cancel) { _, _ ->
++                                    setupColorPalette()
++                                }
++                                .show()
++                        }
++                    }
++                }
++            }
++        addToRadioGroup(*radios.toTypedArray())
++    }
++
+     private fun setupToolbarBackground() {
+         requirePreference<SwitchPreferenceCompat>(R.string.pref_key_toolbar_background).apply {
+             isChecked = requireComponents.settings.shouldShowToolbarBackground
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/FirefoxTheme.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/FirefoxTheme.kt
+index 9185fef2c847..227a2d7377d6 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/FirefoxTheme.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/FirefoxTheme.kt
+@@ -8,6 +8,7 @@ import androidx.compose.material3.ColorScheme
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.ReadOnlyComposable
++import androidx.compose.ui.platform.LocalContext
+ import mozilla.components.compose.base.theme.AcornColors
+ import mozilla.components.compose.base.theme.AcornGradientScheme
+ import mozilla.components.compose.base.theme.AcornTheme
+@@ -27,6 +28,7 @@ import mozilla.components.compose.base.theme.oledAcornGradientScheme
+ import mozilla.components.compose.base.theme.oledColorPalette
+ import mozilla.components.compose.base.theme.privateAcornGradientScheme
+ import mozilla.components.compose.base.theme.privateColorPalette
++import org.mozilla.fenix.utils.Settings
+ 
+ /**
+  * The theme for Mozilla Firefox for Android (Fenix).
+@@ -39,20 +41,27 @@ fun FirefoxTheme(
+     theme: Theme = getThemeProvider().provideTheme(),
+     content: @Composable () -> Unit,
+ ) {
++    val paletteName = Settings(LocalContext.current).themePalette
++    val isLight = theme == Theme.Light
+     val colors: AcornColors =
+-        when (theme) {
+-            Theme.Light -> lightColorPalette
+-            Theme.Dark -> darkColorPalette
+-            Theme.Oled -> oledColorPalette
+-            Theme.Private -> privateColorPalette
++        with(JusBrowsePalettes) {
++            when (theme) {
++                Theme.Light -> lightColorPalette.withAcornPalette(paletteName, light = true)
++                Theme.Dark -> darkColorPalette.withAcornPalette(paletteName)
++                Theme.Oled -> oledColorPalette
++                Theme.Private -> privateColorPalette
++            }
+         }
+ 
+     val colorScheme: ColorScheme =
+-        when (theme) {
+-            Theme.Light -> acornLightColorScheme()
+-            Theme.Dark -> acornDarkColorScheme()
+-            Theme.Oled -> acornOledColorScheme()
+-            Theme.Private -> acornPrivateColorScheme()
++        with(JusBrowsePalettes) {
++            when (theme) {
++                Theme.Light -> acornLightColorScheme().withPalette(paletteName, light = true)
++                Theme.Dark ->
++                    acornDarkColorScheme().withPalette(paletteName)
++                Theme.Oled -> acornOledColorScheme()
++                Theme.Private -> acornPrivateColorScheme()
++            }
+         }
+ 
+     val gradients: AcornGradientScheme =
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/JusBrowsePalettes.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/JusBrowsePalettes.kt
+new file mode 100644
+index 000000000000..eefb08eccb57
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/JusBrowsePalettes.kt
+@@ -0,0 +1,229 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.theme
++
++import androidx.annotation.StyleRes
++import androidx.compose.material3.ColorScheme
++import androidx.compose.ui.graphics.Color
++import mozilla.components.compose.base.theme.AcornColors
++import org.mozilla.fenix.R
++
++object JusBrowsePalettes {
++    const val DEFAULT = "default"
++    const val CATPPUCCIN = "catppuccin"
++    const val TOKYO_NIGHT = "tokyonight"
++    const val GRUVBOX = "gruvbox"
++    const val NORD = "nord"
++    const val DRACULA = "dracula"
++    const val ROSE_PINE = "rosepine"
++
++    private data class Palette(
++        val background: Color,
++        val surface: Color,
++        val surfaceHigh: Color,
++        val container: Color,
++        val primary: Color,
++        val onPrimary: Color,
++        val secondary: Color,
++        val onSurface: Color,
++    )
++
++    private val palettes =
++        mapOf(
++            CATPPUCCIN to
++                Palette(
++                    background = Color(0xFF11111B),
++                    surface = Color(0xFF1E1E2E),
++                    surfaceHigh = Color(0xFF313244),
++                    container = Color(0xFF45475A),
++                    primary = Color(0xFFB4BEFE),
++                    onPrimary = Color(0xFF1E1E2E),
++                    secondary = Color(0xFFF5C2E7),
++                    onSurface = Color(0xFFCDD6F4),
++                ),
++            TOKYO_NIGHT to
++                Palette(
++                    background = Color(0xFF1A1B26),
++                    surface = Color(0xFF24283B),
++                    surfaceHigh = Color(0xFF2F3549),
++                    container = Color(0xFF2E3E5C),
++                    primary = Color(0xFF7AA2F7),
++                    onPrimary = Color(0xFF1A1B26),
++                    secondary = Color(0xFFBB9AF7),
++                    onSurface = Color(0xFFA9B1D6),
++                ),
++            GRUVBOX to
++                Palette(
++                    background = Color(0xFF1D2021),
++                    surface = Color(0xFF282828),
++                    surfaceHigh = Color(0xFF3C3836),
++                    container = Color(0xFF504945),
++                    primary = Color(0xFFFE8019),
++                    onPrimary = Color(0xFF282828),
++                    secondary = Color(0xFFFABD2F),
++                    onSurface = Color(0xFFEBDBB2),
++                ),
++            NORD to
++                Palette(
++                    background = Color(0xFF242933),
++                    surface = Color(0xFF2E3440),
++                    surfaceHigh = Color(0xFF3B4252),
++                    container = Color(0xFF4C566A),
++                    primary = Color(0xFF88C0D0),
++                    onPrimary = Color(0xFF2E3440),
++                    secondary = Color(0xFF81A1C1),
++                    onSurface = Color(0xFFECEFF4),
++                ),
++            DRACULA to
++                Palette(
++                    background = Color(0xFF282A36),
++                    surface = Color(0xFF2F3242),
++                    surfaceHigh = Color(0xFF44475A),
++                    container = Color(0xFF565A7E),
++                    primary = Color(0xFFBD93F9),
++                    onPrimary = Color(0xFF282A36),
++                    secondary = Color(0xFFFF79C6),
++                    onSurface = Color(0xFFF8F8F2),
++                ),
++            ROSE_PINE to
++                Palette(
++                    background = Color(0xFF191724),
++                    surface = Color(0xFF1F1D2E),
++                    surfaceHigh = Color(0xFF26233A),
++                    container = Color(0xFF403D52),
++                    primary = Color(0xFFC4A7E7),
++                    onPrimary = Color(0xFF191724),
++                    secondary = Color(0xFFEBBCBA),
++                    onSurface = Color(0xFFE0DEF4),
++                ),
++        )
++
++    private val lightPalettes =
++        mapOf(
++            CATPPUCCIN to
++                Palette(
++                    background = Color(0xFFEFF1F5),
++                    surface = Color(0xFFE6E9EF),
++                    surfaceHigh = Color(0xFFDCE0E8),
++                    container = Color(0xFFD9D4F2),
++                    primary = Color(0xFF8839EF),
++                    onPrimary = Color(0xFFEFF1F5),
++                    secondary = Color(0xFFEA76CB),
++                    onSurface = Color(0xFF4C4F69),
++                ),
++            TOKYO_NIGHT to
++                Palette(
++                    background = Color(0xFFE1E2E7),
++                    surface = Color(0xFFD2D6E4),
++                    surfaceHigh = Color(0xFFC4C8DA),
++                    container = Color(0xFFC9D6F2),
++                    primary = Color(0xFF2E7DE9),
++                    onPrimary = Color(0xFFE1E2E7),
++                    secondary = Color(0xFF9854F1),
++                    onSurface = Color(0xFF343B58),
++                ),
++            GRUVBOX to
++                Palette(
++                    background = Color(0xFFFBF1C7),
++                    surface = Color(0xFFEBDBB2),
++                    surfaceHigh = Color(0xFFD5C4A1),
++                    container = Color(0xFFE7D5AE),
++                    primary = Color(0xFFAF3A03),
++                    onPrimary = Color(0xFFFBF1C7),
++                    secondary = Color(0xFFB57614),
++                    onSurface = Color(0xFF3C3836),
++                ),
++            NORD to
++                Palette(
++                    background = Color(0xFFECEFF4),
++                    surface = Color(0xFFE5E9F0),
++                    surfaceHigh = Color(0xFFD8DEE9),
++                    container = Color(0xFFCFD8E3),
++                    primary = Color(0xFF5E81AC),
++                    onPrimary = Color(0xFFECEFF4),
++                    secondary = Color(0xFFB48EAD),
++                    onSurface = Color(0xFF2E3440),
++                ),
++            DRACULA to
++                Palette(
++                    background = Color(0xFFF8F8F2),
++                    surface = Color(0xFFEDE9F6),
++                    surfaceHigh = Color(0xFFDDD6F0),
++                    container = Color(0xFFD5CBF0),
++                    primary = Color(0xFF7157C7),
++                    onPrimary = Color(0xFFF8F8F2),
++                    secondary = Color(0xFFC8508A),
++                    onSurface = Color(0xFF282A36),
++                ),
++            ROSE_PINE to
++                Palette(
++                    background = Color(0xFFFAF4ED),
++                    surface = Color(0xFFFFFAF3),
++                    surfaceHigh = Color(0xFFF2E9E1),
++                    container = Color(0xFFE5D5DC),
++                    primary = Color(0xFF907AA9),
++                    onPrimary = Color(0xFFFAF4ED),
++                    secondary = Color(0xFFD7827E),
++                    onSurface = Color(0xFF575279),
++                ),
++        )
++
++    fun ColorScheme.withPalette(name: String, light: Boolean = false): ColorScheme {
++        val palette = (if (light) lightPalettes else palettes)[name] ?: return this
++        return copy(
++            background = palette.background,
++            onBackground = palette.onSurface,
++            surface = palette.surface,
++            onSurface = palette.onSurface,
++            surfaceVariant = palette.surfaceHigh,
++            surfaceContainer = palette.surface,
++            surfaceContainerHigh = palette.surfaceHigh,
++            surfaceContainerHighest = palette.container,
++            primary = palette.primary,
++            onPrimary = palette.onPrimary,
++            primaryContainer = palette.container,
++            secondary = palette.secondary,
++            onSecondary = palette.onPrimary,
++            tertiary = palette.secondary,
++            onTertiary = palette.onPrimary,
++            tertiaryContainer = palette.container,
++        )
++    }
++
++    fun AcornColors.withAcornPalette(name: String, light: Boolean = false): AcornColors {
++        val palette = (if (light) lightPalettes else palettes)[name] ?: return this
++        return copy(
++            formDefault = palette.primary,
++            surfaceContainerSelected = palette.container,
++            autofillText = palette.primary,
++            selectedText = palette.primary,
++            sheetOutline = palette.surfaceHigh,
++        )
++    }
++
++    @StyleRes
++    fun overlay(name: String, light: Boolean): Int {
++        if (light) {
++            return when (name) {
++                CATPPUCCIN -> R.style.JusBrowsePaletteLight_Catppuccin
++                TOKYO_NIGHT -> R.style.JusBrowsePaletteLight_TokyoNight
++                GRUVBOX -> R.style.JusBrowsePaletteLight_Gruvbox
++                NORD -> R.style.JusBrowsePaletteLight_Nord
++                DRACULA -> R.style.JusBrowsePaletteLight_Dracula
++                ROSE_PINE -> R.style.JusBrowsePaletteLight_RosePine
++                else -> 0
++            }
++        }
++        return when (name) {
++            CATPPUCCIN -> R.style.JusBrowsePalette_Catppuccin
++            TOKYO_NIGHT -> R.style.JusBrowsePalette_TokyoNight
++            GRUVBOX -> R.style.JusBrowsePalette_Gruvbox
++            NORD -> R.style.JusBrowsePalette_Nord
++            DRACULA -> R.style.JusBrowsePalette_Dracula
++            ROSE_PINE -> R.style.JusBrowsePalette_RosePine
++            else -> 0
++        }
++    }
++}
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/ThemeManager.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/ThemeManager.kt
+index 904191f39554..70b464ad69a8 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/ThemeManager.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/theme/ThemeManager.kt
+@@ -26,6 +26,7 @@ import org.mozilla.fenix.HomeActivity
+ import org.mozilla.fenix.R
+ import org.mozilla.fenix.browser.browsingmode.BrowsingMode
+ import org.mozilla.fenix.customtabs.ExternalAppBrowserActivity
++import org.mozilla.fenix.utils.Settings
+ 
+ abstract class ThemeManager {
+ 
+@@ -72,10 +73,24 @@ abstract class ThemeManager {
+ 
+     fun setActivityTheme(activity: Activity) {
+         activity.setTheme(currentThemeResource)
++        if (currentTheme == BrowsingMode.Normal) {
++            val overlay =
++                JusBrowsePalettes.overlay(
++                    Settings(activity).themePalette,
++                    light = !isDarkTheme(activity),
++                )
++            if (overlay != 0) {
++                activity.setTheme(overlay)
++            }
++        }
+     }
+ 
+-    companion object {
+-        /**
++    private fun isDarkTheme(activity: Activity): Boolean {
++        val uiMode = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
++        return uiMode == Configuration.UI_MODE_NIGHT_YES
++    }
++
++    companion object {        /**
+          * Resolves the attribute to a resource ID.
+          *
+          * @param attribute The attribute to resolve.
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
+index 524e131936e4..1d4505177b0a 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
+@@ -1283,6 +1283,12 @@ class Settings(
+             default = false,
+         )
+ 
++    var themePalette by
++        stringPreference(
++            appContext.getPreferenceKey(R.string.pref_key_theme_palette),
++            default = "default",
++        )
++
+     var shouldUseHttpsOnly by
+         booleanPreference(
+             appContext.getPreferenceKey(R.string.pref_key_https_only),
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt
+index 19358faa9595..7e8ef4c20b6e 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt
+@@ -212,6 +212,12 @@ class WallpapersUseCases(
+             Wallpaper(name = "green1", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF0FDF4, cardColorDark = 0xFF14532D, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
+             Wallpaper(name = "green2", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF0FDF4, cardColorDark = 0xFF14532D, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
+             Wallpaper(name = "red1", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFFEF2F2, cardColorDark = 0xFF7F1D1D, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
++            Wallpaper(name = "catppuccin", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFEDEDF7, cardColorDark = 0xFF313244, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
++            Wallpaper(name = "tokyonight", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFE9EDF8, cardColorDark = 0xFF24283B, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
++            Wallpaper(name = "gruvbox", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF3E6D5, cardColorDark = 0xFF3C3836, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
++            Wallpaper(name = "nord", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFE6EAF0, cardColorDark = 0xFF3B4252, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
++            Wallpaper(name = "dracula", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF0EBFB, cardColorDark = 0xFF44475A, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
++            Wallpaper(name = "rosepine", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF5EEEF, cardColorDark = 0xFF26233A, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
+             Wallpaper(name = "0026_16_9_img_260520_202312", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF8FAFC, cardColorDark = 0xFF1E293B, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
+             Wallpaper(name = "0077_2_3_img_260612_203059", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF8FAFC, cardColorDark = 0xFF1E293B, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
+             Wallpaper(name = "0098_2_3_img_260703_204826", collection = jusBrowseCollection, textColor = 0xFFFFFFFF, cardColorLight = 0xFFF8FAFC, cardColorDark = 0xFF1E293B, thumbnailFileState = Wallpaper.ImageFileState.Downloaded, assetsFileState = Wallpaper.ImageFileState.Downloaded),
+diff --git a/mobile/android/fenix/app/src/main/res/drawable/ic_launcher_foreground_light.xml b/mobile/android/fenix/app/src/main/res/drawable/ic_launcher_foreground_light.xml
+new file mode 100644
+index 000000000000..9adc9e640402
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/drawable/ic_launcher_foreground_light.xml
+@@ -0,0 +1,47 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="108dp"
++    android:height="108dp"
++    android:viewportWidth="588"
++    android:viewportHeight="588">
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M294.5,346 A52.5,52.5 0 1 1 294.5,451 A52.5,52.5 0 1 1 294.5,346 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M219.5,313 A52.5,52.5 0 1 1 219.5,418 A52.5,52.5 0 1 1 219.5,313 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M190.5,241 A52.5,52.5 0 1 1 190.5,346 A52.5,52.5 0 1 1 190.5,241 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M223.5,167 A52.5,52.5 0 1 1 223.5,272 A52.5,52.5 0 1 1 223.5,167 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M294.5,137 A52.5,52.5 0 1 1 294.5,242 A52.5,52.5 0 1 1 294.5,137 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M369.5,170 A52.5,52.5 0 1 1 369.5,275 A52.5,52.5 0 1 1 369.5,170 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M397.5,244 A52.5,52.5 0 1 1 397.5,349 A52.5,52.5 0 1 1 397.5,244 Z" />
++    <path
++        android:fillColor="#00000000"
++        android:strokeColor="#F2F2F2"
++        android:strokeWidth="18"
++        android:pathData="M365.5,317 A52.5,52.5 0 1 1 365.5,422 A52.5,52.5 0 1 1 365.5,317 Z" />
++</vector>
+diff --git a/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_catppuccin.xml b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_catppuccin.xml
+new file mode 100644
+index 000000000000..ef3767945700
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_catppuccin.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/jusbrowse_palette_catppuccin_surface"/>
++    <foreground android:drawable="@drawable/ic_launcher_foreground_light"/>
++    <monochrome android:drawable="@drawable/ic_launcher_foreground_light"/>
++</adaptive-icon>
+diff --git a/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_dracula.xml b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_dracula.xml
+new file mode 100644
+index 000000000000..ac702bdbef29
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_dracula.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/jusbrowse_palette_dracula_surface"/>
++    <foreground android:drawable="@drawable/ic_launcher_foreground_light"/>
++    <monochrome android:drawable="@drawable/ic_launcher_foreground_light"/>
++</adaptive-icon>
+diff --git a/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_gruvbox.xml b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_gruvbox.xml
+new file mode 100644
+index 000000000000..61bc3eb20438
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_gruvbox.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/jusbrowse_palette_gruvbox_surface"/>
++    <foreground android:drawable="@drawable/ic_launcher_foreground_light"/>
++    <monochrome android:drawable="@drawable/ic_launcher_foreground_light"/>
++</adaptive-icon>
+diff --git a/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_nord.xml b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_nord.xml
+new file mode 100644
+index 000000000000..0019f0f41c59
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_nord.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/jusbrowse_palette_nord_surface"/>
++    <foreground android:drawable="@drawable/ic_launcher_foreground_light"/>
++    <monochrome android:drawable="@drawable/ic_launcher_foreground_light"/>
++</adaptive-icon>
+diff --git a/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_rosepine.xml b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_rosepine.xml
+new file mode 100644
+index 000000000000..f051625a75c2
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_rosepine.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/jusbrowse_palette_rosepine_surface"/>
++    <foreground android:drawable="@drawable/ic_launcher_foreground_light"/>
++    <monochrome android:drawable="@drawable/ic_launcher_foreground_light"/>
++</adaptive-icon>
+diff --git a/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_tokyonight.xml b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_tokyonight.xml
+new file mode 100644
+index 000000000000..bb573bb369f0
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/mipmap-anydpi/ic_launcher_tokyonight.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/jusbrowse_palette_tokyonight_surface"/>
++    <foreground android:drawable="@drawable/ic_launcher_foreground_light"/>
++    <monochrome android:drawable="@drawable/ic_launcher_foreground_light"/>
++</adaptive-icon>
+diff --git a/mobile/android/fenix/app/src/main/res/values/colors.xml b/mobile/android/fenix/app/src/main/res/values/colors.xml
+index a76bc4853d87..3cd78179ba26 100644
+--- a/mobile/android/fenix/app/src/main/res/values/colors.xml
++++ b/mobile/android/fenix/app/src/main/res/values/colors.xml
+@@ -3,6 +3,103 @@
+    - License, v. 2.0. If a copy of the MPL was not distributed with this
+    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+ <resources xmlns:tools="http://schemas.android.com/tools">
++    <!-- JusBrowse UI color palettes -->
++    <color name="jusbrowse_palette_catppuccin_background">#11111B</color>
++    <color name="jusbrowse_palette_catppuccin_surface">#1E1E2E</color>
++    <color name="jusbrowse_palette_catppuccin_surface_high">#313244</color>
++    <color name="jusbrowse_palette_catppuccin_primary">#B4BEFE</color>
++    <color name="jusbrowse_palette_catppuccin_on_primary">#1E1E2E</color>
++    <color name="jusbrowse_palette_catppuccin_secondary">#F5C2E7</color>
++    <color name="jusbrowse_palette_catppuccin_on_surface">#CDD6F4</color>
++    <color name="jusbrowse_palette_tokyonight_background">#1A1B26</color>
++    <color name="jusbrowse_palette_tokyonight_surface">#24283B</color>
++    <color name="jusbrowse_palette_tokyonight_surface_high">#2F3549</color>
++    <color name="jusbrowse_palette_tokyonight_primary">#7AA2F7</color>
++    <color name="jusbrowse_palette_tokyonight_on_primary">#1A1B26</color>
++    <color name="jusbrowse_palette_tokyonight_secondary">#BB9AF7</color>
++    <color name="jusbrowse_palette_tokyonight_on_surface">#A9B1D6</color>
++    <color name="jusbrowse_palette_gruvbox_background">#1D2021</color>
++    <color name="jusbrowse_palette_gruvbox_surface">#282828</color>
++    <color name="jusbrowse_palette_gruvbox_surface_high">#3C3836</color>
++    <color name="jusbrowse_palette_gruvbox_primary">#FE8019</color>
++    <color name="jusbrowse_palette_gruvbox_on_primary">#282828</color>
++    <color name="jusbrowse_palette_gruvbox_secondary">#FABD2F</color>
++    <color name="jusbrowse_palette_gruvbox_on_surface">#EBDBB2</color>
++    <color name="jusbrowse_palette_nord_background">#242933</color>
++    <color name="jusbrowse_palette_nord_surface">#2E3440</color>
++    <color name="jusbrowse_palette_nord_surface_high">#3B4252</color>
++    <color name="jusbrowse_palette_nord_primary">#88C0D0</color>
++    <color name="jusbrowse_palette_nord_on_primary">#2E3440</color>
++    <color name="jusbrowse_palette_nord_secondary">#81A1C1</color>
++    <color name="jusbrowse_palette_nord_on_surface">#ECEFF4</color>
++    <color name="jusbrowse_palette_dracula_background">#282A36</color>
++    <color name="jusbrowse_palette_dracula_surface">#2F3242</color>
++    <color name="jusbrowse_palette_dracula_surface_high">#44475A</color>
++    <color name="jusbrowse_palette_dracula_primary">#BD93F9</color>
++    <color name="jusbrowse_palette_dracula_on_primary">#282A36</color>
++    <color name="jusbrowse_palette_dracula_secondary">#FF79C6</color>
++    <color name="jusbrowse_palette_dracula_on_surface">#F8F8F2</color>
++    <color name="jusbrowse_palette_rosepine_background">#191724</color>
++    <color name="jusbrowse_palette_rosepine_surface">#1F1D2E</color>
++    <color name="jusbrowse_palette_rosepine_surface_high">#26233A</color>
++    <color name="jusbrowse_palette_rosepine_primary">#C4A7E7</color>
++    <color name="jusbrowse_palette_rosepine_on_primary">#191724</color>
++    <color name="jusbrowse_palette_rosepine_secondary">#EBBCBA</color>
++    <color name="jusbrowse_palette_rosepine_on_surface">#E0DEF4</color>
++    <color name="jusbrowse_palette_light_catppuccin_background">#EFF1F5</color>
++    <color name="jusbrowse_palette_light_catppuccin_surface">#E6E9EF</color>
++    <color name="jusbrowse_palette_light_catppuccin_surface_high">#DCE0E8</color>
++    <color name="jusbrowse_palette_light_catppuccin_primary">#8839EF</color>
++    <color name="jusbrowse_palette_light_catppuccin_on_primary">#EFF1F5</color>
++    <color name="jusbrowse_palette_light_catppuccin_secondary">#EA76CB</color>
++    <color name="jusbrowse_palette_light_catppuccin_on_surface">#4C4F69</color>
++    <color name="jusbrowse_palette_light_tokyonight_background">#E1E2E7</color>
++    <color name="jusbrowse_palette_light_tokyonight_surface">#D2D6E4</color>
++    <color name="jusbrowse_palette_light_tokyonight_surface_high">#C4C8DA</color>
++    <color name="jusbrowse_palette_light_tokyonight_primary">#2E7DE9</color>
++    <color name="jusbrowse_palette_light_tokyonight_on_primary">#E1E2E7</color>
++    <color name="jusbrowse_palette_light_tokyonight_secondary">#9854F1</color>
++    <color name="jusbrowse_palette_light_tokyonight_on_surface">#343B58</color>
++    <color name="jusbrowse_palette_light_gruvbox_background">#FBF1C7</color>
++    <color name="jusbrowse_palette_light_gruvbox_surface">#EBDBB2</color>
++    <color name="jusbrowse_palette_light_gruvbox_surface_high">#D5C4A1</color>
++    <color name="jusbrowse_palette_light_gruvbox_primary">#AF3A03</color>
++    <color name="jusbrowse_palette_light_gruvbox_on_primary">#FBF1C7</color>
++    <color name="jusbrowse_palette_light_gruvbox_secondary">#B57614</color>
++    <color name="jusbrowse_palette_light_gruvbox_on_surface">#3C3836</color>
++    <color name="jusbrowse_palette_light_nord_background">#ECEFF4</color>
++    <color name="jusbrowse_palette_light_nord_surface">#E5E9F0</color>
++    <color name="jusbrowse_palette_light_nord_surface_high">#D8DEE9</color>
++    <color name="jusbrowse_palette_light_nord_primary">#5E81AC</color>
++    <color name="jusbrowse_palette_light_nord_on_primary">#ECEFF4</color>
++    <color name="jusbrowse_palette_light_nord_secondary">#B48EAD</color>
++    <color name="jusbrowse_palette_light_nord_on_surface">#2E3440</color>
++    <color name="jusbrowse_palette_light_dracula_background">#F8F8F2</color>
++    <color name="jusbrowse_palette_light_dracula_surface">#EDE9F6</color>
++    <color name="jusbrowse_palette_light_dracula_surface_high">#DDD6F0</color>
++    <color name="jusbrowse_palette_light_dracula_primary">#7157C7</color>
++    <color name="jusbrowse_palette_light_dracula_on_primary">#F8F8F2</color>
++    <color name="jusbrowse_palette_light_dracula_secondary">#C8508A</color>
++    <color name="jusbrowse_palette_light_dracula_on_surface">#282A36</color>
++    <color name="jusbrowse_palette_light_rosepine_background">#FAF4ED</color>
++    <color name="jusbrowse_palette_light_rosepine_surface">#FFFAF3</color>
++    <color name="jusbrowse_palette_light_rosepine_surface_high">#F2E9E1</color>
++    <color name="jusbrowse_palette_light_rosepine_primary">#907AA9</color>
++    <color name="jusbrowse_palette_light_rosepine_on_primary">#FAF4ED</color>
++    <color name="jusbrowse_palette_light_rosepine_secondary">#D7827E</color>
++    <color name="jusbrowse_palette_light_rosepine_on_surface">#575279</color>
++    <color name="jusbrowse_palette_catppuccin_container">#45475A</color>
++    <color name="jusbrowse_palette_tokyonight_container">#2E3E5C</color>
++    <color name="jusbrowse_palette_gruvbox_container">#504945</color>
++    <color name="jusbrowse_palette_nord_container">#4C566A</color>
++    <color name="jusbrowse_palette_dracula_container">#565A7E</color>
++    <color name="jusbrowse_palette_rosepine_container">#403D52</color>
++    <color name="jusbrowse_palette_light_catppuccin_container">#D9D4F2</color>
++    <color name="jusbrowse_palette_light_tokyonight_container">#C9D6F2</color>
++    <color name="jusbrowse_palette_light_gruvbox_container">#E7D5AE</color>
++    <color name="jusbrowse_palette_light_nord_container">#CFD8E3</color>
++    <color name="jusbrowse_palette_light_dracula_container">#D5CBF0</color>
++    <color name="jusbrowse_palette_light_rosepine_container">#E5D5DC</color>
+     <!-- Material3 color variables -->
+     <color name="fx_mobile_primary">@color/novaViolet70</color>
+     <color name="fx_mobile_on_primary">@color/novaWhite</color>
+diff --git a/mobile/android/fenix/app/src/main/res/values/preference_keys.xml b/mobile/android/fenix/app/src/main/res/values/preference_keys.xml
+index f4c5d2d738b7..7a5c1d4fce14 100644
+--- a/mobile/android/fenix/app/src/main/res/values/preference_keys.xml
++++ b/mobile/android/fenix/app/src/main/res/values/preference_keys.xml
+@@ -224,6 +224,14 @@
+     <string name="pref_key_oled_theme" translatable="false">pref_key_oled_theme</string>
+     <string name="pref_key_auto_battery_theme" translatable="false">pref_key_auto_battery_theme</string>
+     <string name="pref_key_follow_device_theme" translatable="false">pref_key_follow_device_theme</string>
++    <string name="pref_key_theme_palette" translatable="false">pref_key_theme_palette</string>
++    <string name="pref_key_theme_palette_default" translatable="false">pref_key_theme_palette_default</string>
++    <string name="pref_key_theme_palette_catppuccin" translatable="false">pref_key_theme_palette_catppuccin</string>
++    <string name="pref_key_theme_palette_tokyonight" translatable="false">pref_key_theme_palette_tokyonight</string>
++    <string name="pref_key_theme_palette_gruvbox" translatable="false">pref_key_theme_palette_gruvbox</string>
++    <string name="pref_key_theme_palette_nord" translatable="false">pref_key_theme_palette_nord</string>
++    <string name="pref_key_theme_palette_dracula" translatable="false">pref_key_theme_palette_dracula</string>
++    <string name="pref_key_theme_palette_rosepine" translatable="false">pref_key_theme_palette_rosepine</string>
+ 
+     <!-- Customization Settings -->
+     <string name="pref_key_customization_preference_screen" translatable="false">pref_key_customization_preference_screen</string>
+diff --git a/mobile/android/fenix/app/src/main/res/values/strings.xml b/mobile/android/fenix/app/src/main/res/values/strings.xml
+index ed34c4855b8c..584fe3a8a513 100644
+--- a/mobile/android/fenix/app/src/main/res/values/strings.xml
++++ b/mobile/android/fenix/app/src/main/res/values/strings.xml
+@@ -1206,6 +1206,28 @@
+     <string name="preference_toolbar_background">Toolbar background</string>
+     <!-- Preference summary for showing the toolbar background -->
+     <string name="preference_toolbar_background_summary">Show background behind the address bar</string>
++    <!-- Preference category for the app color palette -->
++    <string name="preferences_color_palette">Color palette</string>
++    <!-- Preference for the default app colors -->
++    <string name="preference_palette_default">Default</string>
++    <!-- Preference for the Catppuccin app colors -->
++    <string name="preference_palette_catppuccin">Catppuccin</string>
++    <!-- Preference for the Tokyo Night app colors -->
++    <string name="preference_palette_tokyonight">Tokyo Night</string>
++    <!-- Preference for the Gruvbox app colors -->
++    <string name="preference_palette_gruvbox">Gruvbox</string>
++    <!-- Preference for the Nord app colors -->
++    <string name="preference_palette_nord">Nord</string>
++    <!-- Preference for the Dracula app colors -->
++    <string name="preference_palette_dracula">Dracula</string>
++    <!-- Preference for the Rose Pine app colors -->
++    <string name="preference_palette_rosepine">Rosé Pine</string>
++    <!-- Title of the dialog shown when changing color palette -->
++    <string name="preference_palette_restart_title">Change color palette?</string>
++    <!-- Message of the dialog shown when changing color palette -->
++    <string name="preference_palette_restart_message">This also updates the launcher icon and restarts the app. Your tabs will be kept.</string>
++    <!-- Confirm button of the dialog shown when changing color palette -->
++    <string name="preference_palette_restart_confirm">Change</string>
+     <!-- Preference for using simple toolbar -->
+     <string name="preference_simple_toolbar">Simple</string>
+     <!-- Preference for using expanded toolbar -->
+diff --git a/mobile/android/fenix/app/src/main/res/values/styles.xml b/mobile/android/fenix/app/src/main/res/values/styles.xml
+index f3c3079051b6..7c44fa8d52ae 100644
+--- a/mobile/android/fenix/app/src/main/res/values/styles.xml
++++ b/mobile/android/fenix/app/src/main/res/values/styles.xml
+@@ -211,6 +211,282 @@
+ 
+     <style name="NormalTheme" parent="NormalThemeBase" />
+ 
++    <style name="JusBrowsePalette.Catppuccin" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_catppuccin_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_catppuccin_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_catppuccin_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_catppuccin_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_catppuccin_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_catppuccin_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_catppuccin_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_catppuccin_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_catppuccin_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_catppuccin_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_catppuccin_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_catppuccin_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_catppuccin_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_catppuccin_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_catppuccin_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_catppuccin_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_catppuccin_container</item>
++        <item name="layer2">@color/jusbrowse_palette_catppuccin_container</item>
++        <item name="layer3">@color/jusbrowse_palette_catppuccin_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_catppuccin_secondary</item>
++    </style>
++
++    <style name="JusBrowsePalette.TokyoNight" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_tokyonight_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_tokyonight_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_tokyonight_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_tokyonight_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_tokyonight_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_tokyonight_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_tokyonight_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_tokyonight_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_tokyonight_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_tokyonight_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_tokyonight_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_tokyonight_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_tokyonight_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_tokyonight_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_tokyonight_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_tokyonight_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_tokyonight_container</item>
++        <item name="layer2">@color/jusbrowse_palette_tokyonight_container</item>
++        <item name="layer3">@color/jusbrowse_palette_tokyonight_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_tokyonight_secondary</item>
++    </style>
++
++    <style name="JusBrowsePalette.Gruvbox" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_gruvbox_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_gruvbox_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_gruvbox_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_gruvbox_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_gruvbox_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_gruvbox_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_gruvbox_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_gruvbox_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_gruvbox_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_gruvbox_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_gruvbox_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_gruvbox_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_gruvbox_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_gruvbox_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_gruvbox_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_gruvbox_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_gruvbox_container</item>
++        <item name="layer2">@color/jusbrowse_palette_gruvbox_container</item>
++        <item name="layer3">@color/jusbrowse_palette_gruvbox_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_gruvbox_secondary</item>
++    </style>
++
++    <style name="JusBrowsePalette.Nord" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_nord_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_nord_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_nord_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_nord_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_nord_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_nord_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_nord_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_nord_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_nord_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_nord_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_nord_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_nord_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_nord_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_nord_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_nord_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_nord_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_nord_container</item>
++        <item name="layer2">@color/jusbrowse_palette_nord_container</item>
++        <item name="layer3">@color/jusbrowse_palette_nord_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_nord_secondary</item>
++    </style>
++
++    <style name="JusBrowsePalette.Dracula" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_dracula_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_dracula_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_dracula_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_dracula_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_dracula_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_dracula_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_dracula_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_dracula_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_dracula_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_dracula_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_dracula_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_dracula_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_dracula_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_dracula_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_dracula_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_dracula_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_dracula_container</item>
++        <item name="layer2">@color/jusbrowse_palette_dracula_container</item>
++        <item name="layer3">@color/jusbrowse_palette_dracula_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_dracula_secondary</item>
++    </style>
++
++    <style name="JusBrowsePalette.RosePine" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_rosepine_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_rosepine_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_rosepine_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_rosepine_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_rosepine_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_rosepine_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_rosepine_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_rosepine_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_rosepine_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_rosepine_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_rosepine_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_rosepine_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_rosepine_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_rosepine_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_rosepine_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_rosepine_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_rosepine_container</item>
++        <item name="layer2">@color/jusbrowse_palette_rosepine_container</item>
++        <item name="layer3">@color/jusbrowse_palette_rosepine_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_rosepine_secondary</item>
++    </style>
++
++    <style name="JusBrowsePaletteLight.Catppuccin" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_light_catppuccin_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_light_catppuccin_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_light_catppuccin_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_light_catppuccin_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_light_catppuccin_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_light_catppuccin_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_light_catppuccin_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_light_catppuccin_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_light_catppuccin_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_light_catppuccin_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_light_catppuccin_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_light_catppuccin_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_light_catppuccin_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_light_catppuccin_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_light_catppuccin_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_light_catppuccin_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_light_catppuccin_container</item>
++        <item name="layer2">@color/jusbrowse_palette_light_catppuccin_container</item>
++        <item name="layer3">@color/jusbrowse_palette_light_catppuccin_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_light_catppuccin_secondary</item>
++    </style>
++
++    <style name="JusBrowsePaletteLight.TokyoNight" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_light_tokyonight_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_light_tokyonight_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_light_tokyonight_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_light_tokyonight_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_light_tokyonight_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_light_tokyonight_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_light_tokyonight_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_light_tokyonight_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_light_tokyonight_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_light_tokyonight_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_light_tokyonight_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_light_tokyonight_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_light_tokyonight_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_light_tokyonight_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_light_tokyonight_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_light_tokyonight_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_light_tokyonight_container</item>
++        <item name="layer2">@color/jusbrowse_palette_light_tokyonight_container</item>
++        <item name="layer3">@color/jusbrowse_palette_light_tokyonight_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_light_tokyonight_secondary</item>
++    </style>
++
++    <style name="JusBrowsePaletteLight.Gruvbox" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_light_gruvbox_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_light_gruvbox_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_light_gruvbox_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_light_gruvbox_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_light_gruvbox_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_light_gruvbox_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_light_gruvbox_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_light_gruvbox_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_light_gruvbox_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_light_gruvbox_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_light_gruvbox_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_light_gruvbox_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_light_gruvbox_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_light_gruvbox_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_light_gruvbox_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_light_gruvbox_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_light_gruvbox_container</item>
++        <item name="layer2">@color/jusbrowse_palette_light_gruvbox_container</item>
++        <item name="layer3">@color/jusbrowse_palette_light_gruvbox_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_light_gruvbox_secondary</item>
++    </style>
++
++    <style name="JusBrowsePaletteLight.Nord" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_light_nord_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_light_nord_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_light_nord_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_light_nord_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_light_nord_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_light_nord_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_light_nord_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_light_nord_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_light_nord_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_light_nord_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_light_nord_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_light_nord_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_light_nord_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_light_nord_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_light_nord_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_light_nord_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_light_nord_container</item>
++        <item name="layer2">@color/jusbrowse_palette_light_nord_container</item>
++        <item name="layer3">@color/jusbrowse_palette_light_nord_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_light_nord_secondary</item>
++    </style>
++
++    <style name="JusBrowsePaletteLight.Dracula" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_light_dracula_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_light_dracula_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_light_dracula_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_light_dracula_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_light_dracula_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_light_dracula_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_light_dracula_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_light_dracula_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_light_dracula_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_light_dracula_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_light_dracula_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_light_dracula_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_light_dracula_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_light_dracula_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_light_dracula_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_light_dracula_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_light_dracula_container</item>
++        <item name="layer2">@color/jusbrowse_palette_light_dracula_container</item>
++        <item name="layer3">@color/jusbrowse_palette_light_dracula_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_light_dracula_secondary</item>
++    </style>
++
++    <style name="JusBrowsePaletteLight.RosePine" parent="NormalTheme">
++        <item name="android:windowBackground">@color/jusbrowse_palette_light_rosepine_surface</item>
++        <item name="android:colorBackground">@color/jusbrowse_palette_light_rosepine_background</item>
++        <item name="colorPrimary">@color/jusbrowse_palette_light_rosepine_primary</item>
++        <item name="colorOnPrimary">@color/jusbrowse_palette_light_rosepine_on_primary</item>
++        <item name="colorSecondary">@color/jusbrowse_palette_light_rosepine_secondary</item>
++        <item name="colorOnSecondary">@color/jusbrowse_palette_light_rosepine_on_primary</item>
++        <item name="colorTertiary">@color/jusbrowse_palette_light_rosepine_secondary</item>
++        <item name="colorOnTertiary">@color/jusbrowse_palette_light_rosepine_on_primary</item>
++        <item name="colorOnBackground">@color/jusbrowse_palette_light_rosepine_on_surface</item>
++        <item name="colorSurface">@color/jusbrowse_palette_light_rosepine_surface</item>
++        <item name="colorOnSurface">@color/jusbrowse_palette_light_rosepine_on_surface</item>
++        <item name="colorSurfaceVariant">@color/jusbrowse_palette_light_rosepine_surface_high</item>
++        <item name="colorSurfaceContainer">@color/jusbrowse_palette_light_rosepine_surface</item>
++        <item name="colorSurfaceContainerHigh">@color/jusbrowse_palette_light_rosepine_surface_high</item>
++        <item name="colorSurfaceContainerHighest">@color/jusbrowse_palette_light_rosepine_container</item>
++        <item name="colorPrimaryContainer">@color/jusbrowse_palette_light_rosepine_container</item>
++        <item name="colorTertiaryContainer">@color/jusbrowse_palette_light_rosepine_container</item>
++        <item name="layer2">@color/jusbrowse_palette_light_rosepine_container</item>
++        <item name="layer3">@color/jusbrowse_palette_light_rosepine_surface</item>
++        <item name="android:textColorLink">@color/jusbrowse_palette_light_rosepine_secondary</item>
++    </style>
++
+     <style name="BaseDialogStyle.Private" parent="BaseDialogStyle">
+         <item name="alertDialogStyle">@style/MaterialAlertDialog.App.Private</item>
+         <item name="materialAlertDialogTitleTextStyle">@style/MaterialAlertDialog.App.Title.Text.Private</item>
+diff --git a/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml b/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml
+index 20bc9ca8505c..48cc4610e3e4 100644
+--- a/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml
++++ b/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml
+@@ -48,6 +48,33 @@
+             app:isPreferenceVisible="@bool/API28" />
+     </androidx.preference.PreferenceCategory>
+ 
++    <androidx.preference.PreferenceCategory
++        android:layout="@layout/preference_cat_style"
++        android:title="@string/preferences_color_palette"
++        app:iconSpaceReserved="false">
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_default"
++            android:title="@string/preference_palette_default" />
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_catppuccin"
++            android:title="@string/preference_palette_catppuccin" />
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_tokyonight"
++            android:title="@string/preference_palette_tokyonight" />
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_gruvbox"
++            android:title="@string/preference_palette_gruvbox" />
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_nord"
++            android:title="@string/preference_palette_nord" />
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_dracula"
++            android:title="@string/preference_palette_dracula" />
++        <org.mozilla.fenix.settings.RadioButtonPreference
++            android:key="@string/pref_key_theme_palette_rosepine"
++            android:title="@string/preference_palette_rosepine" />
++    </androidx.preference.PreferenceCategory>
++
+     <androidx.preference.PreferenceCategory
+         android:layout="@layout/preference_cat_style"
+         android:title="@string/preferences_toolbar_2"
+-- 
+2.55.0
+

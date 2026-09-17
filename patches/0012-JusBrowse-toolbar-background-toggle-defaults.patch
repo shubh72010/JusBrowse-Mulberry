@@ -1,0 +1,209 @@
+From f95f73d07e74450b950338c2250ebf3494a9d93a Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Thu, 17 Sep 2026 12:50:28 +0530
+Subject: [PATCH 12/13] JusBrowse: toolbar background toggle + defaults
+
+Customization toggle for the toolbar background plus adjusted
+defaults (incl. persistence fix).
+---
+ mobile/android/fenix/app/nimbus.fml.yaml          |  6 +++---
+ .../toolbar/BrowserToolbarComposable.kt           | 11 +++++++++--
+ .../fenix/settings/CustomizationFragment.kt       | 15 +++++++++++++++
+ .../main/java/org/mozilla/fenix/utils/Settings.kt | 14 ++++++++++----
+ .../app/src/main/res/values/preference_keys.xml   |  1 +
+ .../fenix/app/src/main/res/values/strings.xml     |  4 ++++
+ .../main/res/xml/customization_preferences.xml    |  5 +++++
+ 7 files changed, 47 insertions(+), 9 deletions(-)
+
+diff --git a/mobile/android/fenix/app/nimbus.fml.yaml b/mobile/android/fenix/app/nimbus.fml.yaml
+index 8cfd532342df..5dbe76beb113 100644
+--- a/mobile/android/fenix/app/nimbus.fml.yaml
++++ b/mobile/android/fenix/app/nimbus.fml.yaml
+@@ -59,7 +59,7 @@ features:
+         type: Map<HomeScreenSection, Boolean>
+         default:
+           {
+-            "top-sites": true,
++            "top-sites": false,
+             "jump-back-in": true,
+             "pocket": true,
+             "pocket-sponsored-stories": true,
+@@ -71,7 +71,7 @@ features:
+       - channel: nightly
+         value: {
+           "sections-enabled": {
+-            "top-sites": true,
++            "top-sites": false,
+             "jump-back-in": true,
+             "pocket": true,
+             "synced-tabs": true,
+@@ -400,7 +400,7 @@ features:
+         description: >
+           Whether to default the toolbar position to bottom.
+         type: Boolean
+-        default: false
++        default: true
+ 
+   default-expanded-toolbar:
+     description: Default expanded (bottom navigation) toolbar state for new users.
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarComposable.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarComposable.kt
+index b19a37d5512d..76d7cfef5c73 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarComposable.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarComposable.kt
+@@ -101,6 +101,7 @@ class BrowserToolbarComposable(
+                 val shouldShowTabStrip: Boolean = remember { shouldShowTabStrip() }
+                 val customColors = browserScreenStore.observeAsComposableState { it.customTabColors }
+                 val shouldUseBottomToolbar = remember(settings) { settings.shouldUseBottomToolbar }
++                val showToolbarBackground = settings.shouldShowToolbarBackground
+ 
+                 val toolbarState by toolbarStore.stateFlow.collectAsState()
+                 val toolbarCFR = toolbarState.displayState.cfr
+@@ -124,10 +125,16 @@ class BrowserToolbarComposable(
+                 FirefoxTheme {
+                     val materialColors = MaterialTheme.colorScheme
+                     val colorScheme =
+-                        remember(customColors.value, materialColors) {
++                        remember(customColors.value, materialColors, showToolbarBackground) {
+                             materialColors.copy(
+                                 // Toolbar background
+-                                surface = customColors.value?.toolbarColor?.let { Color(it) } ?: materialColors.surface,
++                                surface =
++                                    if (showToolbarBackground) {
++                                        customColors.value?.toolbarColor?.let { Color(it) }
++                                            ?: materialColors.surface
++                                    } else {
++                                        Color.Transparent
++                                    },
+                                 // Page origin background
+                                 surfaceContainerHighest =
+                                     when (customTabSession) {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt
+index 8cdf01aa8341..812e109896e8 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/CustomizationFragment.kt
+@@ -117,6 +117,7 @@ class CustomizationFragment : PreferenceFragmentCompat(), SystemInsetsPaddedFrag
+         setupRadioGroups()
+         val tabletAndTabStripEnabled = Settings(requireContext()).isTabStripEnabled
+         updateToolbarCategoryBasedOnTabStrip(tabletAndTabStripEnabled)
++        setupToolbarBackground()
+         setupTabStripCategory()
+         setupToolbarLayout()
+         updateToolbarShortcut()
+@@ -332,6 +333,20 @@ class CustomizationFragment : PreferenceFragmentCompat(), SystemInsetsPaddedFrag
+         addToRadioGroup(topPreference, bottomPreference)
+     }
+ 
++    private fun setupToolbarBackground() {
++        requirePreference<SwitchPreferenceCompat>(R.string.pref_key_toolbar_background).apply {
++            isChecked = requireComponents.settings.shouldShowToolbarBackground
++            onPreferenceChangeListener =
++                object : SharedPreferenceUpdater() {
++                    override fun onPreferenceChange(preference: Preference, newValue: Any?): Boolean {
++                        return super.onPreferenceChange(preference, newValue).also {
++                            if (it) activity?.recreate()
++                        }
++                    }
++                }
++        }
++    }
++
+     private fun setupTabStripCategory() {
+         val tabStripSwitch = requirePreference<SwitchPreferenceCompat>(R.string.pref_key_tab_strip_show)
+         val context = requireContext()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
+index 3a2f3e5987b1..524e131936e4 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
+@@ -1286,7 +1286,7 @@ class Settings(
+     var shouldUseHttpsOnly by
+         booleanPreference(
+             appContext.getPreferenceKey(R.string.pref_key_https_only),
+-            default = false,
++            default = true,
+         )
+ 
+     var shouldUseHttpsOnlyInAllTabs by
+@@ -1341,13 +1341,13 @@ class Settings(
+     val useStandardTrackingProtection by
+         booleanPreference(
+             appContext.getPreferenceKey(R.string.pref_key_tracking_protection_standard_option),
+-            true,
++            false,
+         )
+ 
+     val useStrictTrackingProtection by
+         booleanPreference(
+             appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_default),
+-            false,
++            true,
+         )
+ 
+     val useCustomTrackingProtection by
+@@ -1628,6 +1628,12 @@ class Settings(
+             persistDefaultIfNotExists = true,
+         )
+ 
++    var shouldShowToolbarBackground by
++        booleanPreference(
++            key = appContext.getPreferenceKey(R.string.pref_key_toolbar_background),
++            default = true,
++        )
++
+     val toolbarPosition: ToolbarPosition
+         get() =
+             if (isTabStripEnabled) {
+@@ -3056,7 +3062,7 @@ class Settings(
+     private var trrMode by
+         intPreference(
+             key = appContext.getPreferenceKey(R.string.pref_key_doh_settings_mode),
+-            default = DOH_SETTINGS_DEFAULT,
++            default = DOH_SETTINGS_INCREASED,
+         )
+ 
+     /**
+diff --git a/mobile/android/fenix/app/src/main/res/values/preference_keys.xml b/mobile/android/fenix/app/src/main/res/values/preference_keys.xml
+index fdd4a5e4b9b9..f4c5d2d738b7 100644
+--- a/mobile/android/fenix/app/src/main/res/values/preference_keys.xml
++++ b/mobile/android/fenix/app/src/main/res/values/preference_keys.xml
+@@ -206,6 +206,7 @@
+     <string name="pref_key_toolbar_tab_swipe_cfr">pref_key_should_show_tab_swipe_cfr</string>
+     <string name="pref_key_toolbar_has_shown_tab_swipe_cfr">pref_key_has_shown_tab_swipe_cfr</string>
+     <string name="pref_key_toolbar_expanded" translatable="false">pref_key_toolbar_expanded</string>
++    <string name="pref_key_toolbar_background" translatable="false">pref_key_toolbar_background</string>
+     <string name="pref_key_toolbar_focus_mode" translatable="false">pref_key_toolbar_focus_mode</string>
+ 
+     <!-- App icon settings-->
+diff --git a/mobile/android/fenix/app/src/main/res/values/strings.xml b/mobile/android/fenix/app/src/main/res/values/strings.xml
+index f301b76a5508..ed34c4855b8c 100644
+--- a/mobile/android/fenix/app/src/main/res/values/strings.xml
++++ b/mobile/android/fenix/app/src/main/res/values/strings.xml
+@@ -1202,6 +1202,10 @@
+     <string name="preference_top_toolbar">Top</string>
+     <!-- Preference for using bottom toolbar -->
+     <string name="preference_bottom_toolbar">Bottom</string>
++    <!-- Preference for showing the toolbar background -->
++    <string name="preference_toolbar_background">Toolbar background</string>
++    <!-- Preference summary for showing the toolbar background -->
++    <string name="preference_toolbar_background_summary">Show background behind the address bar</string>
+     <!-- Preference for using simple toolbar -->
+     <string name="preference_simple_toolbar">Simple</string>
+     <!-- Preference for using expanded toolbar -->
+diff --git a/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml b/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml
+index e3a7e99aa762..20bc9ca8505c 100644
+--- a/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml
++++ b/mobile/android/fenix/app/src/main/res/xml/customization_preferences.xml
+@@ -59,6 +59,11 @@
+         <org.mozilla.fenix.settings.RadioButtonPreference
+             android:key="@string/pref_key_toolbar_bottom"
+             android:title="@string/preference_bottom_toolbar" />
++        <androidx.preference.SwitchPreferenceCompat
++            android:defaultValue="true"
++            android:key="@string/pref_key_toolbar_background"
++            android:title="@string/preference_toolbar_background"
++            android:summary="@string/preference_toolbar_background_summary" />
+         <androidx.preference.Preference
+             android:key="@string/pref_key_tab_strip_message"
+             android:title=""
+-- 
+2.55.0
+

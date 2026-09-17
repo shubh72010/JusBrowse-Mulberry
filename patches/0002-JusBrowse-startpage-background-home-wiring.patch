@@ -1,0 +1,79 @@
+From bcdd3e25f640b6c482dddc492c12c63f9e24140e Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Sat, 12 Sep 2026 11:47:11 +0530
+Subject: [PATCH 02/13] JusBrowse: startpage background + home wiring
+
+StartPageBackground composable (ported from Strait BrowserScreen),
+wired into Homepage. (DotPill overlay experiment added then removed;
+net effect is the background wiring only.)
+---
+ .../org/mozilla/fenix/home/ui/Homepage.kt     |  3 ++
+ .../fenix/jusbrowse/StartPageBackground.kt    | 35 +++++++++++++++++++
+ 2 files changed, 38 insertions(+)
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/StartPageBackground.kt
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt
+index 612108089931..a4112dc1926f 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Homepage.kt
+@@ -106,6 +106,7 @@ import org.mozilla.fenix.home.topsites.store.toPopularSite
+ import org.mozilla.fenix.home.topsites.ui.AddShortcutBottomSheet
+ import org.mozilla.fenix.home.topsites.ui.AddShortcutDialog
+ import org.mozilla.fenix.home.ui.HomepageTestTag.HOMEPAGE
++import org.mozilla.fenix.jusbrowse.JusBrowseStartPageBackground
+ import org.mozilla.fenix.theme.FirefoxTheme
+ import org.mozilla.fenix.trackingprotection.TrackersBlockedCard
+ import org.mozilla.fenix.utils.isLargeScreenSize
+@@ -136,6 +137,8 @@ internal fun Homepage(
+     var shortcutsDialogState by remember { mutableStateOf<DialogState>(DialogState.Closed) }
+ 
+     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
++        JusBrowseStartPageBackground(presetName = "WALLPAPER_BLUE1")
++
+         Column(
+             modifier =
+                 Modifier.fillMaxSize()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/StartPageBackground.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/StartPageBackground.kt
+new file mode 100644
+index 000000000000..b6410726a01e
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/StartPageBackground.kt
+@@ -0,0 +1,35 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.jusbrowse
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++
++enum class JusBrowseBackgroundPreset(val colors: List<Color>) {
++    NONE(emptyList()),
++    WALLPAPER_BLUE1(listOf(Color(0xFF0F172A), Color(0xFF1E40AF))),
++    WALLPAPER_GREEN1(listOf(Color(0xFF052E16), Color(0xFF16A34A))),
++    WALLPAPER_DARK1(listOf(Color(0xFF09090B), Color(0xFF27272A))),
++    GOLDEN(listOf(Color(0xFF422006), Color(0xFFF59E0B))),
++    ;
++    companion object { fun fromName(name: String) = values().find { it.name == name } ?: NONE }
++}
++
++@Composable
++fun JusBrowseStartPageBackground(presetName: String = "NONE", modifier: Modifier = Modifier) {
++    val preset = remember(presetName) { JusBrowseBackgroundPreset.fromName(presetName) }
++    if (preset == JusBrowseBackgroundPreset.NONE || preset.colors.isEmpty()) return
++    val brush = remember(preset) {
++        if (preset.colors.size == 1) Brush.verticalGradient(listOf(preset.colors[0], preset.colors[0]))
++        else Brush.verticalGradient(preset.colors)
++    }
++    Box(modifier = modifier.fillMaxSize().background(brush))
++}
+-- 
+2.55.0
+

@@ -27,9 +27,21 @@ rm -rf source/mozilla-central
 
 ```
 JusBrowse-Mul/
-├── patches/                  # one .patch per logical change (lexicographic order = apply order)
-│   ├── 0001-jusbrowse-branding.patch
-│   └── README.md
+├── patches/                  # 13 logical patches (lexicographic order = apply order)
+│   ├── 0001-...-branding-rename-app_name.patch
+│   ├── 0002-...-startpage-background-home-wiring.patch
+│   ├── 0003-...-web-rendering-shell-...-always-static.patch
+│   ├── 0004-...-segmented-connect-list-styling.patch
+│   ├── 0005-...-hard-disable-ALL-telemetry.patch
+│   ├── 0006-...-branding-strings-all-locales.patch
+│   ├── 0007-...-editable-2nd-toolbar-shortcut-....patch
+│   ├── 0008-...-wallpaper-selector-bundled-wallpapers.patch  # ~24MB shipped art
+│   ├── 0009-...-wordmark-on-startpage.patch
+│   ├── 0010-...-single-logo-purge-....patch
+│   ├── 0011-...-application-identity-release-signing.patch
+│   ├── 0012-...-toolbar-background-toggle-defaults.patch
+│   ├── 0013-...-UI-color-palettes-....patch
+│   └── README.md             # per-patch table + policy
 ├── config/
 │   ├── mozconfig             # copied to source/mozilla-central/mozconfig before build
 │   └── upstream.yml          # pinned mozilla-central revision
@@ -108,17 +120,18 @@ Rules per patch:
 
 Scheduled job: fetch → apply → build. Success = green; conflict = report failing patch number. See `.github/workflows/ci.yml`.
 
-## Phases
+## Phases (final patch mapping)
 
 | Phase | Patches |
 |-------|---------|
-| 1 — POC | `0001-branding` (proves mechanism) |
-| 2 — Branding | app name, icons, identity |
-| 3 — UI | toolbar, tabs, homepage |
-| 4 — Privacy | tracking protection, DoH, adblock |
-| 5 — Features | incremental JusBrowse features |
+| 1 — POC / shell | `0001` app_name, `0002` startpage bg, `0003` web shell (always-static card) |
+| 2 — Branding | `0006` strings+locales, `0009` wordmark, `0010` single-logo purge |
+| 3 — UI | `0004` segmented lists, `0007` 2nd toolbar shortcut, `0008` wallpapers, `0012` toolbar toggle, `0013` palettes |
+| 4 — Privacy | `0005` telemetry hard-disable |
+| 5 — Identity | `0011` applicationId + release signing |
 
-Each phase is one or more small patches, never one giant fork.
+Each phase is small focused patches, never one giant fork. See
+`patches/README.md` for the full per-patch table.
 
 ## Why this works for AI agents
 

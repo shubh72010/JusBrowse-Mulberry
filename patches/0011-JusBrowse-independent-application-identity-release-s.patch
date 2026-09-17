@@ -1,0 +1,202 @@
+From dbe97382c34a35366e5da73a031e1a78efdb072d Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Thu, 17 Sep 2026 12:11:00 +0530
+Subject: [PATCH 11/13] JusBrowse: independent application identity + release
+ signing
+
+applicationId com.jusdots.jusbrowse (+debug/nightly/beta suffixes),
+own deep-link schemes, release signing via env-provided keystore.
+---
+ mobile/android/fenix/app/build.gradle         | 52 +++++++++----------
+ .../fenix/app/src/beta/AndroidManifest.xml    | 15 ------
+ .../fenix/app/src/main/res/xml/shortcuts.xml  |  3 --
+ .../fenix/app/src/release/AndroidManifest.xml | 15 ------
+ 4 files changed, 26 insertions(+), 59 deletions(-)
+ delete mode 100644 mobile/android/fenix/app/src/beta/AndroidManifest.xml
+ delete mode 100644 mobile/android/fenix/app/src/release/AndroidManifest.xml
+
+diff --git a/mobile/android/fenix/app/build.gradle b/mobile/android/fenix/app/build.gradle
+index 2848013545d2..14dc574ff879 100644
+--- a/mobile/android/fenix/app/build.gradle
++++ b/mobile/android/fenix/app/build.gradle
+@@ -44,7 +44,7 @@ android {
+             arg("room.schemaLocation", "$projectDir/schemas".toString())
+         }
+ 
+-        applicationId "org.mozilla"
++        applicationId "com.jusdots.jusbrowse"
+         minSdk config.minSdkVersion
+         targetSdk config.targetSdkVersion
+         versionCode 1
+@@ -64,7 +64,7 @@ android {
+         // This should be the base URL used to call the AMO API.
+         buildConfigField "String", "AMO_SERVER_URL", "\"https://services.addons.mozilla.org\""
+ 
+-        def deepLinkSchemeValue = "fenix-dev"
++        def deepLinkSchemeValue = "jusbrowse-dev"
+         buildConfigField "String", "DEEP_LINK_SCHEME", "\"$deepLinkSchemeValue\""
+ 
+         manifestPlaceholders = [
+@@ -95,6 +95,23 @@ android {
+             signingConfig = signingConfigs.debug
+         }
+ 
++        // JusBrowse: use the permanent release key when its location is provided
++        // via JUSBROWSE_KEYSTORE_PATH (passwords via JUSBROWSE_KEYSTORE_PASSWORD
++        // and JUSBROWSE_KEY_PASSWORD, alias via JUSBROWSE_KEY_ALIAS). Never
++        // committed to the repo; CI must inject these from secrets.
++        def jusbrowseKeystorePath = System.getenv("JUSBROWSE_KEYSTORE_PATH")
++        if (jusbrowseKeystorePath) {
++            if (!signingConfigs.findByName("jusbrowseRelease")) {
++                signingConfigs.create("jusbrowseRelease") {
++                    storeFile file(jusbrowseKeystorePath)
++                    storePassword System.getenv("JUSBROWSE_KEYSTORE_PASSWORD")
++                    keyAlias System.getenv("JUSBROWSE_KEY_ALIAS") ?: "jusbrowse"
++                    keyPassword System.getenv("JUSBROWSE_KEY_PASSWORD") ?: System.getenv("JUSBROWSE_KEYSTORE_PASSWORD")
++                }
++            }
++            signingConfig = signingConfigs.getByName("jusbrowseRelease")
++        }
++
+         if (gradle.hasProperty("localProperties.debuggable") ||
+             gradle.mozconfig.substs.MOZ_ANDROID_DEBUGGABLE) {
+             debuggable true
+@@ -105,14 +122,14 @@ android {
+         debug {
+             shrinkResources = false
+             minifyEnabled = false
+-            applicationIdSuffix ".fenix.debug"
++            applicationIdSuffix ".debug"
+             resValue "bool", "IS_DEBUG", "true"
+             pseudoLocalesEnabled = true
+         }
+         nightly releaseTemplate >> {
+-            applicationIdSuffix ".fenix"
++            applicationIdSuffix ".nightly"
+             buildConfigField "boolean", "USE_RELEASE_VERSIONING", "true"
+-            def deepLinkSchemeValue = "fenix-nightly"
++            def deepLinkSchemeValue = "jusbrowse-nightly"
+             buildConfigField "String", "DEEP_LINK_SCHEME", "\"$deepLinkSchemeValue\""
+             manifestPlaceholders.putAll([
+                     "deepLinkScheme": deepLinkSchemeValue
+@@ -120,35 +137,18 @@ android {
+         }
+         beta releaseTemplate >> {
+             buildConfigField "boolean", "USE_RELEASE_VERSIONING", "true"
+-            applicationIdSuffix ".firefox_beta"
+-            def deepLinkSchemeValue = "fenix-beta"
++            applicationIdSuffix ".beta"
++            def deepLinkSchemeValue = "jusbrowse-beta"
+             buildConfigField "String", "DEEP_LINK_SCHEME", "\"$deepLinkSchemeValue\""
+             manifestPlaceholders.putAll([
+-                    // This release type is meant to replace Firefox (Beta channel) and therefore needs to inherit
+-                    // its sharedUserId for all eternity. See:
+-                    // https://searchfox.org/mozilla-esr68/search?q=moz_android_shared_id&case=false&regexp=false&path=
+-                    // Shipping an app update without sharedUserId can have
+-                    // fatal consequences. For example see:
+-                    //  - https://issuetracker.google.com/issues/36924841
+-                    //  - https://issuetracker.google.com/issues/36905922
+-                    "sharedUserId": "org.mozilla.firefox.sharedID",
+                     "deepLinkScheme": deepLinkSchemeValue,
+             ])
+         }
+         release releaseTemplate >> {
+             buildConfigField "boolean", "USE_RELEASE_VERSIONING", "true"
+-            applicationIdSuffix ".firefox"
+-            def deepLinkSchemeValue = "fenix"
++            def deepLinkSchemeValue = "jusbrowse"
+             buildConfigField "String", "DEEP_LINK_SCHEME", "\"$deepLinkSchemeValue\""
+             manifestPlaceholders.putAll([
+-                    // This release type is meant to replace Firefox (Release channel) and therefore needs to inherit
+-                    // its sharedUserId for all eternity. See:
+-                    // https://searchfox.org/mozilla-esr68/search?q=moz_android_shared_id&case=false&regexp=false&path=
+-                    // Shipping an app update without sharedUserId can have
+-                    // fatal consequences. For example see:
+-                    //  - https://issuetracker.google.com/issues/36924841
+-                    //  - https://issuetracker.google.com/issues/36905922
+-                    "sharedUserId": "org.mozilla.firefox.sharedID",
+                     "deepLinkScheme": deepLinkSchemeValue,
+             ])
+         }
+@@ -156,7 +156,7 @@ android {
+             initWith buildTypes.nightly
+             shrinkResources = false
+             minifyEnabled = false
+-            applicationIdSuffix ".fenix"
++            applicationIdSuffix ".nightly"
+             signingConfig = signingConfigs.debug
+             debuggable false
+             buildConfigField "boolean", "IS_BENCHMARK_BUILD", "true"
+diff --git a/mobile/android/fenix/app/src/beta/AndroidManifest.xml b/mobile/android/fenix/app/src/beta/AndroidManifest.xml
+deleted file mode 100644
+index 4207f1fbce93..000000000000
+--- a/mobile/android/fenix/app/src/beta/AndroidManifest.xml
++++ /dev/null
+@@ -1,15 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<!-- This Source Code Form is subject to the terms of the Mozilla Public
+-   - License, v. 2.0. If a copy of the MPL was not distributed with this
+-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+-
+-<!--
+-  sharedUserId: This release type is meant to replace Firefox (Beta channel) and therefore needs to inherit
+-                its sharedUserId for all eternity. Shipping an app update without sharedUserId can have
+-                fatal consequences. For example see:
+-                - https://issuetracker.google.com/issues/36924841
+-                - https://issuetracker.google.com/issues/36905922
+--->
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:sharedUserId="${sharedUserId}">
+-</manifest>
+diff --git a/mobile/android/fenix/app/src/main/res/xml/shortcuts.xml b/mobile/android/fenix/app/src/main/res/xml/shortcuts.xml
+index fb28b5782b45..f4fcc97aced4 100644
+--- a/mobile/android/fenix/app/src/main/res/xml/shortcuts.xml
++++ b/mobile/android/fenix/app/src/main/res/xml/shortcuts.xml
+@@ -11,7 +11,6 @@
+         android:shortcutShortLabel="@string/home_screen_shortcut_passwords">
+         <intent
+             android:action="org.mozilla.fenix.OPEN_PASSWORD_MANAGER"
+-            android:targetPackage="org.mozilla.fenix"
+             android:targetClass="org.mozilla.fenix.IntentReceiverActivity" />
+     </shortcut>
+     <shortcut
+@@ -21,7 +20,6 @@
+         android:shortcutShortLabel="@string/home_screen_shortcut_open_new_tab_2">
+         <intent
+             android:action="org.mozilla.fenix.OPEN_TAB"
+-            android:targetPackage="org.mozilla.fenix"
+             android:targetClass="org.mozilla.fenix.IntentReceiverActivity" />
+     </shortcut>
+     <shortcut
+@@ -31,7 +29,6 @@
+         android:shortcutShortLabel="@string/home_screen_shortcut_open_new_private_tab_2">
+         <intent
+             android:action="org.mozilla.fenix.OPEN_PRIVATE_TAB"
+-            android:targetPackage="org.mozilla.fenix"
+             android:targetClass="org.mozilla.fenix.IntentReceiverActivity" />
+     </shortcut>
+ </shortcuts>
+diff --git a/mobile/android/fenix/app/src/release/AndroidManifest.xml b/mobile/android/fenix/app/src/release/AndroidManifest.xml
+deleted file mode 100644
+index bd5999c8d4d9..000000000000
+--- a/mobile/android/fenix/app/src/release/AndroidManifest.xml
++++ /dev/null
+@@ -1,15 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<!-- This Source Code Form is subject to the terms of the Mozilla Public
+-   - License, v. 2.0. If a copy of the MPL was not distributed with this
+-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+-
+-<!--
+-  sharedUserId: This release type is meant to replace Firefox (Release channel) and therefore needs to inherit
+-                its sharedUserId for all eternity. Shipping an app update without sharedUserId can have
+-                fatal consequences. For example see:
+-                - https://issuetracker.google.com/issues/36924841
+-                - https://issuetracker.google.com/issues/36905922
+--->
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:sharedUserId="${sharedUserId}">
+-</manifest>
+-- 
+2.55.0
+

@@ -1,8 +1,9 @@
-From 641848df94697f15b0f1480c80ca0ad9d457f4ac Mon Sep 17 00:00:00 2001
+From 4eaec094ce777b0c8585d25c9f61e5e68adc61f9 Mon Sep 17 00:00:00 2001
 From: JusDots <eng@jusdots.com>
 Date: Sat, 12 Sep 2026 11:47:08 +0530
-Subject: [PATCH 01/18] JusBrowse: branding - rename app_name
+Subject: [PATCH 01/13] JusBrowse: branding - rename app_name
 
+Base en-US app name string.
 ---
  .../android/fenix/app/src/main/res/values/static_strings.xml  | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)

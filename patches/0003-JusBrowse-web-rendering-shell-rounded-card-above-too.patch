@@ -1,0 +1,470 @@
+From 8aa7342feb1140fecab2762b7c57031799f93850 Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 16:53:45 +0530
+Subject: [PATCH 03/13] JusBrowse: web rendering shell - rounded card above
+ toolbar, always static
+
+Webpage renders inside an inset rounded card (10dp margins) above the
+toolbar. iterations folded in: CoordinatorLayout-safe margins, dynamic
+gap, expand-when-hidden, top-mode gap fixes, PDF gap, toolbar clip.
+Final: always-static shell (Gecko dynamic reserve + vertical clipping
+disabled, toolbar inner padding cleared) - verified on device.
+---
+ .../fenix/browser/BaseBrowserFragment.kt      |  89 +++++++--------
+ .../mozilla/fenix/browser/BrowserFragment.kt  |  98 ++++++++++++++++
+ .../toolbar/BottomToolbarContainerView.kt     |   3 +
+ .../mozilla/fenix/jusbrowse/BrowserShell.kt   | 107 ++++++++++++++++++
+ .../main/res/drawable/jusbrowse_card_bg.xml   |   6 +
+ .../src/main/res/layout/fragment_browser.xml  |  33 +++++-
+ 6 files changed, 287 insertions(+), 49 deletions(-)
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
+ create mode 100644 mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+index 93c75093cbf6..a2125a998ba6 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BaseBrowserFragment.kt
+@@ -156,10 +156,8 @@ import mozilla.components.support.locale.ActivityContextWrapper
+ import mozilla.components.support.utils.DefaultDownloadFileUtils
+ import mozilla.components.support.utils.ext.pixelSizeFor
+ import mozilla.components.ui.widgets.R as widgetsR
+-import mozilla.components.ui.widgets.behavior.EngineViewClippingBehavior
+ import mozilla.components.ui.widgets.withCenterAlignedButtons
+ import mozilla.telemetry.glean.private.NoExtras
+-import org.mozilla.fenix.BuildConfig
+ import org.mozilla.fenix.FeatureFlags
+ import org.mozilla.fenix.GleanMetrics.EmailMask
+ import org.mozilla.fenix.GleanMetrics.MediaState
+@@ -1321,20 +1319,17 @@ abstract class BaseBrowserFragment :
+             view = view,
+         )
+ 
+-        // This component feature only works on Fenix when built on Mozilla infrastructure.
+-        if (BuildConfig.MOZILLA_OFFICIAL) {
+-            webAuthnFeature.set(
+-                feature =
+-                    WebAuthnFeature(
+-                        engine = requireComponents.core.engine,
+-                        activity = requireActivity(),
+-                        exitFullScreen = requireComponents.useCases.sessionUseCases.exitFullscreen::invoke,
+-                        currentTab = { store.state.selectedTabId },
+-                    ),
+-                owner = this,
+-                view = view,
+-            )
+-        }
++        webAuthnFeature.set(
++            feature =
++                WebAuthnFeature(
++                    engine = requireComponents.core.engine,
++                    activity = requireActivity(),
++                    exitFullScreen = requireComponents.useCases.sessionUseCases.exitFullscreen::invoke,
++                    currentTab = { store.state.selectedTabId },
++                ),
++            owner = this,
++            view = view,
++        )
+ 
+         screenOrientationFeature.set(
+             feature =
+@@ -1729,25 +1724,19 @@ abstract class BaseBrowserFragment :
+     ) {
+         val context = requireContext()
+ 
+-        if (isToolbarDynamic(context) && webAppToolbarShouldBeVisible) {
+-            getEngineView().setDynamicToolbarMaxHeight(topToolbarHeight + bottomToolbarHeight)
+-
+-            (getSwipeRefreshLayout().layoutParams as CoordinatorLayout.LayoutParams).behavior =
+-                EngineViewClippingBehavior(
+-                    context = context,
+-                    attrs = null,
+-                    engineViewParent = getSwipeRefreshLayout(),
+-                    topToolbarHeight = topToolbarHeight,
+-                    bottomToolbarHeight = bottomToolbarHeight,
+-                )
+-        } else {
+-            // Ensure webpage's bottom elements are aligned to the very bottom of the engineView.
+-            getEngineView().setDynamicToolbarMaxHeight(0)
+-
+-            // Effectively place the engineView on top/below of the toolbars if that is not dynamic.
+-            val swipeRefreshParams = getSwipeRefreshLayout().layoutParams as CoordinatorLayout.LayoutParams
+-            swipeRefreshParams.topMargin = topToolbarHeight
+-            swipeRefreshParams.bottomMargin = bottomToolbarHeight
++        // JusBrowse shell positions the web card above the toolbar via margins,
++        // so Gecko must not reserve viewport space for a dynamic toolbar.
++        getEngineView().setDynamicToolbarMaxHeight(0)
++        getEngineView().setVerticalClipping(0)
++
++        val dp10 = (10 * context.resources.displayMetrics.density).toInt()
++        val swipeRefreshParams = getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams
++        swipeRefreshParams?.let {
++            it.behavior = null
++            it.topMargin = topToolbarHeight + dp10
++            it.bottomMargin = bottomToolbarHeight + dp10
++            it.leftMargin = dp10
++            it.rightMargin = dp10
+         }
+     }
+ 
+@@ -2154,14 +2143,15 @@ abstract class BaseBrowserFragment :
+         val toolbarHeights = view?.let { probeToolbarHeights() } ?: return
+ 
+         context?.also {
+-            if (isToolbarDynamic(it)) {
+-                if (!requireComponents.core.geckoRuntime.isInteractiveWidgetDefaultResizesVisual) {
+-                    getEngineView().setDynamicToolbarMaxHeight(toolbarHeights.first + toolbarHeights.second)
+-                }
+-            } else {
+-                (getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
+-                    bottomMargin = toolbarHeights.second
+-                }
++            getEngineView().setDynamicToolbarMaxHeight(0)
++            getEngineView().setVerticalClipping(0)
++            val dp10 = (10 * it.resources.displayMetrics.density).toInt()
++            (getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
++                behavior = null
++                bottomMargin = toolbarHeights.second + dp10
++                topMargin = toolbarHeights.first + dp10
++                leftMargin = dp10
++                rightMargin = dp10
+             }
+         }
+     }
+@@ -2285,10 +2275,15 @@ abstract class BaseBrowserFragment :
+             collapse()
+             isVisible = false
+         }
+-        val browserEngine = getSwipeRefreshLayout().layoutParams as CoordinatorLayout.LayoutParams
+-        browserEngine.behavior = null
+-        browserEngine.bottomMargin = 0
+-        browserEngine.topMargin = 0
++        val browserEngine = getSwipeRefreshLayout().layoutParams as? CoordinatorLayout.LayoutParams
++        browserEngine?.let {
++            it.behavior = null
++            val dp10 = (10 * (context ?: requireContext()).resources.displayMetrics.density).toInt()
++            it.bottomMargin = dp10
++            it.topMargin = dp10
++            it.leftMargin = dp10
++            it.rightMargin = dp10
++        }
+         getSwipeRefreshLayout().apply {
+             translationY = 0f
+             requestLayout()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index 179763a96967..63073103e413 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -25,7 +25,9 @@ import kotlinx.coroutines.flow.flatMapLatest
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+ import mozilla.components.browser.state.selector.selectedTab
++import mozilla.components.browser.state.state.BrowserState
+ import mozilla.components.browser.state.state.CustomTabSessionState
++import mozilla.components.lib.state.ext.flow
+ import mozilla.components.browser.state.state.SessionState
+ import mozilla.components.browser.state.state.TabSessionState
+ import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
+@@ -158,6 +160,102 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+     override fun initializeUI(view: View, tab: SessionState) {
+         super.initializeUI(view, tab)
+ 
++        runCatching {
++            val swipeRefreshView: View? = view.findViewById<View>(org.mozilla.fenix.R.id.swipeRefresh)
++            swipeRefreshView?.apply {
++                clipToOutline = true
++                outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
++            }
++            view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowsePill)?.visibility = View.GONE
++            view.post {
++                val parent = binding.browserLayout
++                val dp10 = (10 * resources.displayMetrics.density).toInt()
++                val store = requireContext().components.core.store
++                fun isPdfTab(): Boolean {
++                    val tab = store.state.selectedTab
++                    return tab?.content?.isPdf == true || tab?.content?.url?.startsWith("content://") == true
++                }
++                // initial 10dp to avoid flash, then PreDraw will handle toolbar
++                (swipeRefreshView?.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
++                    if (lp.topMargin != dp10 || lp.leftMargin != dp10 || lp.rightMargin != dp10) {
++                        lp.topMargin = dp10
++                        lp.leftMargin = dp10
++                        lp.rightMargin = dp10
++                        // bottom handled by PreDraw
++                    }
++                }
++                // JusBrowse shell sits above the toolbar, so drop the legacy
++                // inner padding that assumed web content slides under it.
++                _bottomToolbarContainerView?.toolbarContainerView?.let { v ->
++                    v.setPadding(0, 0, 0, 0)
++                    v.clipToPadding = false
++                }
++                _browserToolbar?.layout?.let { v ->
++                    v.setPadding(0, 0, 0, 0)
++                }
++                parent.setPadding(0, 0, 0, 0)
++                parent.clipToPadding = false
++                parent.viewTreeObserver.addOnPreDrawListener {
++                    val swipeView = swipeRefreshView ?: return@addOnPreDrawListener true
++                    // PDF: shell sits 10dp from screen, no toolbar gap – toolbar draws over shell background
++                    if (isPdfTab()) {
++                        (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
++                            if (lp.topMargin != dp10 || lp.bottomMargin != dp10 || lp.leftMargin != dp10 || lp.rightMargin != dp10) {
++                                lp.topMargin = dp10
++                                lp.bottomMargin = dp10
++                                lp.leftMargin = dp10
++                                lp.rightMargin = dp10
++                                swipeView.requestLayout()
++                            }
++                        }
++                        return@addOnPreDrawListener true
++                    }
++                    val toolbars = mutableListOf<View>()
++                    fun collect(vg: android.view.ViewGroup) {
++                        for (i in 0 until vg.childCount) {
++                            val child = vg.getChildAt(i)
++                            if (child is mozilla.components.concept.toolbar.ScrollableToolbar) toolbars.add(child)
++                            if (child is android.view.ViewGroup) collect(child)
++                        }
++                    }
++                    collect(parent)
++                    var bottomVisible = 0
++                    for (tb in toolbars) {
++                        if (!tb.isShown) continue
++                        if (tb.top >= parent.height / 2) {
++                            bottomVisible = (tb.height - tb.translationY).toInt().coerceIn(0, tb.height)
++                        }
++                    }
++                    (swipeView.layoutParams as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams)?.let { lp ->
++                        val newTop = dp10
++                        val newBottom = if (bottomVisible > 0) bottomVisible + dp10 else dp10
++                        if (lp.topMargin != newTop || lp.bottomMargin != newBottom || lp.leftMargin != dp10 || lp.rightMargin != dp10) {
++                            lp.topMargin = newTop
++                            lp.bottomMargin = newBottom
++                            lp.leftMargin = dp10
++                            lp.rightMargin = dp10
++                            swipeView.requestLayout()
++                        }
++                    }
++                    true
++                }
++            }
++            val emptyHint = view.findViewById<View>(org.mozilla.fenix.R.id.jusBrowseEmptyHint)
++            if (emptyHint != null) {
++                val store = requireContext().components.core.store
++                viewLifecycleOwner.lifecycleScope.launch {
++                    store.flow().collect { state: BrowserState ->
++                        val tab = state.selectedTab
++                        val url = tab?.content?.url.orEmpty()
++                        val title = tab?.content?.title?.trim().orEmpty()
++                        val isEmpty = (url == "about:blank" || url == "about:home" || url.isBlank()) && title.isBlank()
++                        emptyHint.visibility = if (isEmpty) View.VISIBLE else View.GONE
++                        if (isEmpty) emptyHint.bringToFront()
++                    }
++                }
++            }
++        }
++
+         val context = requireContext()
+         val components = context.components
+         val settings = components.settings
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BottomToolbarContainerView.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BottomToolbarContainerView.kt
+index 24529e81e086..5db235430c31 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BottomToolbarContainerView.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BottomToolbarContainerView.kt
+@@ -70,6 +70,9 @@ class BottomToolbarContainerView(
+                                 )
+                     }
+                 }
++        toolbarContainerView.setPadding(0, 0, 0, 0)
++        toolbarContainerView.clipToPadding = false
++        (toolbarContainerView.layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin = 0
+ 
+         parent.addView(toolbarContainerView)
+     }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
+new file mode 100644
+index 000000000000..f52950727ac2
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/BrowserShell.kt
+@@ -0,0 +1,107 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.jusbrowse
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.navigationBarsPadding
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.widthIn
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.draw.shadow
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import mozilla.components.browser.state.selector.selectedTab
++import mozilla.components.lib.state.ext.observeAsComposableState
++import org.mozilla.fenix.ext.components
++
++@Composable
++fun JusBrowseBrowserPill(modifier: Modifier = Modifier) {
++    val context = LocalContext.current
++    val store = context.components.core.store
++    val state by store.observeAsComposableState { it }
++    val tab = state.selectedTab
++    val rawTitle = tab?.content?.title?.trim().orEmpty()
++    val url = tab?.content?.url.orEmpty()
++    val host = url.removePrefix("https://").removePrefix("http://").substringBefore("/").substringBefore("?")
++        .takeIf { it.isNotBlank() && it != "about:blank" && it != "about:home" } ?: ""
++
++    val displayTitle = when {
++        rawTitle.isNotBlank() && url != "about:blank" && url != "about:home" -> {
++            val t = rawTitle
++            when {
++                t.contains(" - Google Search") -> t.substringBefore(" - Google Search").trim().ifEmpty { t }
++                else -> t
++            }
++        }
++        url.contains("q=") && host.contains("google.") -> {
++            try {
++                val q = url.substringAfter("q=").substringBefore("&").replace("+", " ")
++                java.net.URLDecoder.decode(q, "UTF-8").ifBlank { host }
++            } catch (_: Exception) { host.ifBlank { "page title" } }
++        }
++        host.isNotBlank() -> host
++        else -> "page title"
++    }.ifBlank { "page title" }
++
++    Box(
++        modifier = modifier
++            .fillMaxWidth()
++            .navigationBarsPadding()
++            .padding(bottom = 14.dp),
++        contentAlignment = Alignment.BottomCenter,
++    ) {
++        Box(
++            modifier = Modifier
++                .widthIn(min = 180.dp, max = 320.dp)
++                .height(52.dp)
++                .shadow(10.dp, RoundedCornerShape(28.dp))
++                .border(
++                    width = 1.dp,
++                    brush = Brush.linearGradient(
++                        listOf(
++                            Color.White.copy(alpha = 0.12f),
++                            Color.White.copy(alpha = 0.04f),
++                        ),
++                    ),
++                    shape = RoundedCornerShape(28.dp),
++                )
++                .clip(RoundedCornerShape(28.dp))
++                .background(
++                    if (displayTitle == "page title") Color(0xFF6B6B6B).copy(alpha = 0.95f)
++                    else Color(0xFF2F3136).copy(alpha = 0.98f),
++                )
++                .padding(horizontal = 24.dp),
++            contentAlignment = Alignment.Center,
++        ) {
++            Text(
++                text = displayTitle,
++                color = if (displayTitle == "page title") Color.White.copy(alpha = 0.60f) else Color.White,
++                fontSize = 15.sp,
++                fontWeight = if (displayTitle == "page title") FontWeight.Medium else FontWeight.SemiBold,
++                maxLines = 1,
++                overflow = TextOverflow.Ellipsis,
++                textAlign = TextAlign.Center,
++                style = MaterialTheme.typography.titleMedium,
++            )
++        }
++    }
++}
+diff --git a/mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml b/mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
+new file mode 100644
+index 000000000000..7a9f9fb2fd34
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/drawable/jusbrowse_card_bg.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android"
++    android:shape="rectangle">
++    <corners android:radius="28dp" />
++    <solid android:color="#1E2022" />
++</shape>
+diff --git a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
+index 9c07d8aa8c60..50bb4bb8a836 100644
+--- a/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
++++ b/mobile/android/fenix/app/src/main/res/layout/fragment_browser.xml
+@@ -18,16 +18,36 @@
+             android:id="@+id/browserLayout"
+             android:layout_width="match_parent"
+             android:layout_height="0dp"
++            android:background="#0A0C0F"
+             app:layout_constraintHeight_min="1dp"
+             app:layout_constraintBottom_toBottomOf="parent"
+             app:layout_constraintTop_toTopOf="parent"
+             tools:context="browser.BrowserFragment">
+ 
++            <TextView
++                android:id="@+id/jusBrowseEmptyHint"
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:layout_gravity="center"
++                android:alpha="0.55"
++                android:elevation="1dp"
++                android:gravity="center"
++                android:lineSpacingExtra="4dp"
++                android:text="Web Content\ndisplaying here"
++                android:textColor="#9AA0A6"
++                android:textSize="22sp"
++                android:textStyle="bold"
++                android:visibility="gone"
++                tools:visibility="visible" />
++
+             <mozilla.components.ui.widgets.VerticalSwipeRefreshLayout
+                 android:id="@+id/swipeRefresh"
+-                android:background="@null"
+                 android:layout_width="match_parent"
+-                android:layout_height="match_parent">
++                android:layout_height="match_parent"
++                android:layout_margin="10dp"
++                android:background="@drawable/jusbrowse_card_bg"
++                android:clipToOutline="true"
++                android:elevation="0dp">
+ 
+                 <mozilla.components.concept.engine.EngineView
+                     android:id="@+id/engineView"
+@@ -112,6 +132,15 @@
+ 
+         </androidx.coordinatorlayout.widget.CoordinatorLayout>
+ 
++        <androidx.compose.ui.platform.ComposeView
++            android:id="@+id/jusBrowsePill"
++            android:layout_width="0dp"
++            android:layout_height="wrap_content"
++            android:elevation="16dp"
++            app:layout_constraintBottom_toBottomOf="parent"
++            app:layout_constraintEnd_toEndOf="parent"
++            app:layout_constraintStart_toStartOf="parent" />
++
+     </androidx.constraintlayout.widget.ConstraintLayout>
+ 
+     <org.mozilla.fenix.browser.TabPreview
+-- 
+2.55.0
+

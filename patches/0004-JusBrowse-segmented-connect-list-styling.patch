@@ -1,0 +1,382 @@
+From 6d0759927e9faeece823ec742f6ba73eb614f5fc Mon Sep 17 00:00:00 2001
+From: JusDots <eng@jusdots.com>
+Date: Mon, 14 Sep 2026 19:04:16 +0530
+Subject: [PATCH 04/13] JusBrowse: segmented connect-list styling
+
+Unified grouped-list style (separate-but-connected cards) applied to
+settings lists. Includes right-edge/initial-placement/lag fixes.
+---
+ .../org/mozilla/fenix/FenixApplication.kt     |   1 +
+ .../mozilla/fenix/jusbrowse/SegmentedList.kt  | 320 ++++++++++++++++++
+ .../BiometricPromptPreferenceFragment.kt      |   9 +
+ 3 files changed, 330 insertions(+)
+ create mode 100644 mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/FenixApplication.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/FenixApplication.kt
+index 35903275d6c1..9fe673ba8f2d 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/FenixApplication.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/FenixApplication.kt
+@@ -220,6 +220,7 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
+         // Capture A-C logs to Android logcat. Note that gecko maybe directly post to logcat
+         // regardless of what we do here.
+         Log.addSink(FenixLogSink(logsDebug = Config.channel.isDebug, AndroidLogSink()))
++        runCatching { org.mozilla.fenix.jusbrowse.installSegmentedListGlobal(this) }
+ 
+         // Register a deferred initializer for crash reporting that will be called lazily when
+         // CrashReporter.requireInstance is first accessed. This allows all processes to register
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+new file mode 100644
+index 000000000000..d0da30a2a318
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+@@ -0,0 +1,320 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.jusbrowse
++
++import android.graphics.drawable.GradientDrawable
++import android.view.View
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.itemsIndexed
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.unit.dp
++import androidx.recyclerview.widget.RecyclerView
++
++private val GroupLargeCorner = 28.dp
++private val GroupSmallCorner = 6.dp
++
++fun segmentedShape(index: Int, count: Int): Shape =
++    when {
++        count <= 1 -> RoundedCornerShape(GroupLargeCorner)
++        index == 0 -> RoundedCornerShape(
++            topStart = GroupLargeCorner,
++            topEnd = GroupLargeCorner,
++            bottomEnd = GroupSmallCorner,
++            bottomStart = GroupSmallCorner,
++        )
++        index == count - 1 -> RoundedCornerShape(
++            topStart = GroupSmallCorner,
++            topEnd = GroupSmallCorner,
++            bottomEnd = GroupLargeCorner,
++            bottomStart = GroupLargeCorner,
++        )
++        else -> RoundedCornerShape(GroupSmallCorner)
++    }
++
++@Composable
++fun <T> SegmentedConnectList(
++    items: List<T>,
++    modifier: Modifier = Modifier,
++    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
++    content: @Composable (item: T, index: Int) -> Unit,
++) {
++    Column(
++        verticalArrangement = Arrangement.spacedBy(2.dp),
++        modifier = modifier.fillMaxWidth().padding(contentPadding),
++    ) {
++        items.forEachIndexed { index, item ->
++            Card(
++                shape = segmentedShape(index = index, count = items.size),
++                colors = CardDefaults.cardColors(
++                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
++                ),
++                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
++                modifier = Modifier.fillMaxWidth(),
++            ) {
++                content(item, index)
++            }
++        }
++    }
++}
++
++@Composable
++fun <T> SegmentedConnectLazyColumn(
++    items: List<T>,
++    modifier: Modifier = Modifier,
++    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
++    content: @Composable (item: T, index: Int) -> Unit,
++) {
++    LazyColumn(
++        verticalArrangement = Arrangement.spacedBy(2.dp),
++        contentPadding = contentPadding,
++        modifier = modifier.fillMaxWidth(),
++    ) {
++        itemsIndexed(items) { index, item ->
++            Card(
++                shape = segmentedShape(index = index, count = items.size),
++                colors = CardDefaults.cardColors(
++                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
++                ),
++                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
++                modifier = Modifier.fillMaxWidth().animateItem(),
++            ) {
++                content(item, index)
++            }
++        }
++    }
++}
++
++fun View.applySegmentedBackground(index: Int, count: Int) {
++    val rLarge = 28f * resources.displayMetrics.density
++    val rSmall = 6f * resources.displayMetrics.density
++    val radii = when {
++        count <= 1 -> floatArrayOf(rLarge, rLarge, rLarge, rLarge, rLarge, rLarge, rLarge, rLarge)
++        index == 0 -> floatArrayOf(rLarge, rLarge, rLarge, rLarge, rSmall, rSmall, rSmall, rSmall)
++        index == count - 1 -> floatArrayOf(rSmall, rSmall, rSmall, rSmall, rLarge, rLarge, rLarge, rLarge)
++        else -> floatArrayOf(rSmall, rSmall, rSmall, rSmall, rSmall, rSmall, rSmall, rSmall)
++    }
++    val bgColor = runCatching {
++        val tv = android.util.TypedValue()
++        context.theme.resolveAttribute(com.google.android.material.R.attr.colorSurfaceContainerLow, tv, true)
++        if (tv.type in 28..31) tv.data else 0xFFE8EAED.toInt()
++    }.getOrElse { 0xFFE8EAED.toInt() }
++    val d = GradientDrawable().apply {
++        shape = GradientDrawable.RECTANGLE
++        cornerRadii = radii
++        setColor(bgColor)
++    }
++    background = d
++    // Option A: no per-child margins – RecyclerView padding (12dp) + ItemDecoration handles insets
++    clipToOutline = true
++    elevation = 0f
++}
++
++private const val SEGMENTED_TAG_KEY = 0x7f0a9999
++
++fun RecyclerView.applySegmentedDecoration() {
++    if (getTag(SEGMENTED_TAG_KEY) == true) return
++    setTag(SEGMENTED_TAG_KEY, true)
++    val gap = (2 * resources.displayMetrics.density).toInt()
++    val inset = (12 * resources.displayMetrics.density).toInt()
++    setPadding(inset, paddingTop, inset, paddingBottom)
++    clipToPadding = false
++    // ponytail: cache getItem method + category per pos to fix lag and initial placement
++    var cachedMethod: java.lang.reflect.Method? = null
++    var methodTried = false
++    var catCache: BooleanArray? = null
++    var cacheCnt = -1
++    fun ensureCache() {
++        val cnt = adapter?.itemCount ?: 0
++        if (cnt == 0) { catCache = null; cacheCnt = 0; return }
++        if (catCache != null && cacheCnt == cnt) return
++        if (!methodTried) {
++            methodTried = true
++            cachedMethod = runCatching {
++                adapter?.javaClass?.methods?.firstOrNull { it.name == "getItem" && it.parameterCount == 1 }
++                    ?: adapter?.javaClass?.getMethod("getItem", Int::class.javaPrimitiveType)
++            }.getOrNull()
++        }
++        val cat = BooleanArray(cnt)
++        for (p in 0 until cnt) {
++            var isCat = false
++            runCatching {
++                val m = cachedMethod
++                if (m != null) {
++                    val pref = m.invoke(adapter, p)
++                    val n = pref?.javaClass?.name ?: ""
++                    if (n.contains("PreferenceCategory")) isCat = true
++                }
++            }
++            if (!isCat) {
++                runCatching {
++                    val vh = findViewHolderForAdapterPosition(p)
++                    if (vh != null) {
++                        val cname = vh.itemView::class.java.name + " " + vh.toString()
++                        if (cname.contains("Category", ignoreCase = true)) isCat = true
++                    }
++                }
++            }
++            cat[p] = isCat
++        }
++        catCache = cat; cacheCnt = cnt
++    }
++    val isCategoryAt: (Int) -> Boolean = { pos ->
++        val c = catCache
++        if (c != null && pos in c.indices) c[pos]
++        else runCatching {
++            val a = adapter ?: return@runCatching false
++            val m = cachedMethod ?: a.javaClass.methods.firstOrNull { it.name == "getItem" && it.parameterCount == 1 }
++            if (m != null) {
++                val pref = m.invoke(a, pos)
++                if (pref?.javaClass?.name?.contains("PreferenceCategory") == true) return@runCatching true
++            }
++            val vh = findViewHolderForAdapterPosition(pos)
++            if (vh != null && (vh.itemView::class.java.name + " " + vh.toString()).contains("Category", true)) return@runCatching true
++            false
++        }.getOrDefault(false)
++    }
++
++    addItemDecoration(object : RecyclerView.ItemDecoration() {
++        override fun getItemOffsets(
++            outRect: android.graphics.Rect,
++            view: View,
++            parent: RecyclerView,
++            state: RecyclerView.State,
++        ) {
++            val pos = parent.getChildAdapterPosition(view)
++            if (pos == RecyclerView.NO_POSITION) return
++            ensureCache()
++            if (isCategoryAt(pos)) {
++                outRect.top = if (pos == 0) 0 else (16 * resources.displayMetrics.density).toInt()
++                return
++            }
++            if (pos > 0 && isCategoryAt(pos - 1)) {
++                outRect.top = gap
++                return
++            }
++            outRect.top = if (pos == 0) 0 else gap
++        }
++    })
++
++    var pending = false
++    fun scheduleApply() {
++        if (pending) return
++        pending = true
++        post {
++            pending = false
++            ensureCache()
++            val cnt = adapter?.itemCount ?: 0
++            if (cnt == 0) return@post
++            for (i in 0 until childCount) {
++                val child = getChildAt(i) ?: continue
++                val pos = getChildAdapterPosition(child)
++                if (pos == RecyclerView.NO_POSITION) continue
++                if (isCategoryAt(pos)) {
++                    if (child.background != null) child.background = null
++                    child.clipToOutline = false
++                    child.elevation = 0f
++                    continue
++                }
++                var start = pos
++                while (start > 0 && !isCategoryAt(start - 1)) start--
++                var end = pos
++                while (end < cnt - 1 && !isCategoryAt(end + 1)) end++
++                val sz = end - start + 1
++                val idx = pos - start
++                child.applySegmentedBackground(idx, sz)
++            }
++        }
++    }
++
++    val applyToChildren: () -> Unit = { scheduleApply() }
++
++    addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
++        override fun onChildViewAttachedToWindow(view: View) {
++            ensureCache()
++            val pos = getChildAdapterPosition(view)
++            if (pos == RecyclerView.NO_POSITION) return
++            val cnt = adapter?.itemCount ?: return
++            if (isCategoryAt(pos)) {
++                if (view.background != null) view.background = null
++                view.clipToOutline = false
++                view.elevation = 0f
++            } else {
++                var start = pos
++                while (start > 0 && !isCategoryAt(start - 1)) start--
++                var end = pos
++                while (end < cnt - 1 && !isCategoryAt(end + 1)) end++
++                view.applySegmentedBackground(pos - start, end - start + 1)
++            }
++            scheduleApply()
++        }
++        override fun onChildViewDetachedFromWindow(view: View) {}
++    })
++    adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
++        override fun onChanged() { catCache = null; scheduleApply() }
++        override fun onItemRangeInserted(p0: Int, p1: Int) { catCache = null; scheduleApply() }
++        override fun onItemRangeRemoved(p0: Int, p1: Int) { catCache = null; scheduleApply() }
++        override fun onItemRangeMoved(p0: Int, p1: Int, p2: Int) { catCache = null; scheduleApply() }
++    })
++    // single global listener, not post loop
++    viewTreeObserver.addOnGlobalLayoutListener { scheduleApply() }
++    post { ensureCache(); scheduleApply() }
++}
++
++private fun View.findAllRecyclerViews(out: MutableList<RecyclerView>) {
++    if (this is RecyclerView) out.add(this)
++    if (this is android.view.ViewGroup) {
++        for (i in 0 until childCount) getChildAt(i).findAllRecyclerViews(out)
++    }
++}
++
++fun installSegmentedListGlobal(app: android.app.Application) {
++    app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
++        override fun onActivityCreated(a: android.app.Activity, s: android.os.Bundle?) {
++            if (a is androidx.fragment.app.FragmentActivity) {
++                a.supportFragmentManager.registerFragmentLifecycleCallbacks(
++                    object : androidx.fragment.app.FragmentManager.FragmentLifecycleCallbacks() {
++                        override fun onFragmentViewCreated(
++                            fm: androidx.fragment.app.FragmentManager,
++                            f: androidx.fragment.app.Fragment,
++                            v: View,
++                            s: android.os.Bundle?,
++                        ) {
++                            runCatching {
++                                val list = mutableListOf<RecyclerView>()
++                                v.findAllRecyclerViews(list)
++                                // Also catch the dedicated preference recycler_view if not yet in hierarchy
++                                v.findViewById<RecyclerView>(androidx.preference.R.id.recycler_view)?.let {
++                                    if (!list.contains(it)) list.add(it)
++                                }
++                                v.findViewById<RecyclerView>(android.R.id.list)?.let {
++                                    if (!list.contains(it)) list.add(it)
++                                }
++                                list.forEach { it.applySegmentedDecoration() }
++                            }
++                        }
++                    },
++                    true,
++                )
++            }
++        }
++        override fun onActivityStarted(a: android.app.Activity) {}
++        override fun onActivityResumed(a: android.app.Activity) {}
++        override fun onActivityPaused(a: android.app.Activity) {}
++        override fun onActivityStopped(a: android.app.Activity) {}
++        override fun onActivitySaveInstanceState(a: android.app.Activity, o: android.os.Bundle) {}
++        override fun onActivityDestroyed(a: android.app.Activity) {}
++    })
++}
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/biometric/BiometricPromptPreferenceFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/biometric/BiometricPromptPreferenceFragment.kt
+index 3e97b20ee943..4f8644eb9acc 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/biometric/BiometricPromptPreferenceFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/biometric/BiometricPromptPreferenceFragment.kt
+@@ -17,6 +17,7 @@ import androidx.preference.PreferenceFragmentCompat
+ import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
+ import org.mozilla.fenix.ext.components
+ import org.mozilla.fenix.ext.registerForActivityResult
++import org.mozilla.fenix.jusbrowse.applySegmentedDecoration
+ import org.mozilla.fenix.settings.requirePreference
+ 
+ /** Helper for creating and implementing the [BiometricPromptFeature]. Currently used for logins and credit cards. */
+@@ -33,6 +34,14 @@ abstract class BiometricPromptPreferenceFragment : PreferenceFragmentCompat() {
+         }
+     }
+ 
++    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
++        super.onViewCreated(view, savedInstanceState)
++        runCatching {
++            view.findViewById<androidx.recyclerview.widget.RecyclerView>(androidx.preference.R.id.recycler_view)
++                ?.applySegmentedDecoration()
++        }
++    }
++
+     /** Gets the string to be used for [BiometricPromptFeature.requestAuthentication] prompting to unlock the device. */
+     abstract fun unlockMessage(): String
+ 
+-- 
+2.55.0
+

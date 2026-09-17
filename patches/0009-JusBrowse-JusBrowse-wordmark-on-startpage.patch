@@ -1,0 +1,111 @@
+From 4975ffe36bc0f498b5f742368a781e1d04426523 Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Tue, 15 Sep 2026 12:22:21 +0530
+Subject: [PATCH 09/13] JusBrowse: JusBrowse wordmark on startpage
+
+Replaces the Firefox wordmark with JusBrowse; bigger type, green2
+wallpaper default.
+---
+ .../org/mozilla/fenix/home/ui/Wordmark.kt     | 28 ++++++++++---------
+ .../java/org/mozilla/fenix/utils/Settings.kt  |  7 +----
+ .../fenix/wallpapers/WallpapersUseCases.kt    |  1 +
+ 3 files changed, 17 insertions(+), 19 deletions(-)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Wordmark.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Wordmark.kt
+index ec629fbbdb2c..79d1bb885715 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Wordmark.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/home/ui/Wordmark.kt
+@@ -7,19 +7,20 @@ package org.mozilla.fenix.home.ui
+ import androidx.compose.foundation.Image
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.graphics.ColorFilter
+-import androidx.compose.ui.res.dimensionResource
+ import androidx.compose.ui.res.painterResource
+-import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.SemanticsPropertyKey
+ import androidx.compose.ui.semantics.SemanticsPropertyReceiver
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.testTag
+ import androidx.compose.ui.semantics.testTagsAsResourceId
++import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
+ import org.mozilla.fenix.R
+ import org.mozilla.fenix.home.ui.HomepageTestTag.HOMEPAGE_WORDMARK_LOGO
+ import org.mozilla.fenix.home.ui.HomepageTestTag.HOMEPAGE_WORDMARK_TEXT
+@@ -36,25 +37,26 @@ internal fun WordmarkLogo() {
+                 .semantics {
+                     testTagsAsResourceId = true
+                     testTag = HOMEPAGE_WORDMARK_LOGO
+-                    resourceId = R.attr.fenixWordmarkLogo
++                    resourceId = R.drawable.ic_launcher_foreground
+                 }
+                 .padding(end = 10.dp),
+-        painter = painterResource(getAttr(R.attr.fenixWordmarkLogo)),
++        painter = painterResource(R.drawable.ic_launcher_foreground),
+         contentDescription = null,
+     )
+ }
+ 
+ @Composable
+ internal fun WordmarkText(color: Color?) {
+-    Image(
++    Text(
++        text = "JusBrowse",
+         modifier =
+             Modifier.semantics {
+-                    testTagsAsResourceId = true
+-                    testTag = HOMEPAGE_WORDMARK_TEXT
+-                }
+-                .height(dimensionResource(R.dimen.wordmark_text_height)),
+-        painter = painterResource(getAttr(R.attr.fenixWordmarkText)),
+-        colorFilter = color?.let { ColorFilter.tint(it) },
+-        contentDescription = stringResource(R.string.app_name),
++                testTagsAsResourceId = true
++                testTag = HOMEPAGE_WORDMARK_TEXT
++            },
++        color = color ?: MaterialTheme.colorScheme.onSurface,
++        fontSize = 28.sp,
++        fontWeight = FontWeight.ExtraBold,
++        letterSpacing = (-0.8).sp,
+     )
+ }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
+index 4232affbd5b3..3a2f3e5987b1 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt
+@@ -576,12 +576,7 @@ class Settings(
+     var currentWallpaperName by
+         stringPreference(
+             appContext.getPreferenceKey(R.string.pref_key_current_wallpaper),
+-            default =
+-                if (enableHomepageEdgeToEdgeBackgroundFeature) {
+-                    Wallpaper.EdgeToEdge.name
+-                } else {
+-                    Wallpaper.Default.name
+-                },
++            default = "green2",
+         )
+ 
+     /**
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt
+index c71db4621097..19358faa9595 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/wallpapers/WallpapersUseCases.kt
+@@ -153,6 +153,7 @@ class WallpapersUseCases(
+                 allAvailable.find { it.name == currentWallpaperName }
+                     ?: fileManager.lookupExpiredWallpaper(settings)
+                     ?: Wallpaper.getCurrentWallpaperFromSettings(settings)
++                    ?: jusBrowseWallpapers.find { it.name == "green2" }
+                     ?: Wallpaper.Default
+ 
+             // Dispatching this early will make it accessible to the home screen ASAP. This may have
+-- 
+2.55.0
+
