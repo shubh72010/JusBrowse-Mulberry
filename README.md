@@ -1,11 +1,10 @@
 <div align="center">
 
-# JusBrowse
+<img src="assets/hero.svg" width="100%" alt="JusBrowse — Firefox Android, reimagined" />
 
-[![Typing](https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=22&center=true&vCenter=true&width=600&lines=Private.+Themed.+Telemetry-free.;Firefox+Android%2C+reimagined.)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
-
-[![Download](https://img.shields.io/github/v/release/shubh72010/JusBrowse-Mulberry?include_prereleases&label=download)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
+[![Download](https://img.shields.io/github/v/release/shubh72010/JusBrowse-Mulberry?include_prereleases&label=download&color=A6E3A1)](https://github.com/shubh72010/JusBrowse-Mulberry/releases)
 ![Downloads](https://img.shields.io/github/downloads/shubh72010/JusBrowse-Mulberry/total?label=downloads)
+![Stars](https://img.shields.io/github/stars/shubh72010/JusBrowse-Mulberry?style=flat&label=stars)
 ![Patches](https://img.shields.io/badge/patches-13-blue)
 ![Platform](https://img.shields.io/badge/platform-Android-green)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
