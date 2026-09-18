@@ -1,0 +1,27 @@
+From f39de6980fd34b94091d7fba4f41409f3ad634ed Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Fri, 18 Sep 2026 11:59:35 +0530
+Subject: [PATCH] JusBrowse: hide preference dividers in segmented lists
+
+---
+ .../main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt    | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+index d0da30a2a318..d7e6d7ba44f8 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/jusbrowse/SegmentedList.kt
+@@ -293,6 +293,10 @@ fun installSegmentedListGlobal(app: android.app.Application) {
+                             s: android.os.Bundle?,
+                         ) {
+                             runCatching {
++                                if (f is androidx.preference.PreferenceFragmentCompat) {
++                                    f.setDivider(null)
++                                    f.setDividerHeight(0)
++                                }
+                                 val list = mutableListOf<RecyclerView>()
+                                 v.findAllRecyclerViews(list)
+                                 // Also catch the dedicated preference recycler_view if not yet in hierarchy
+-- 
+2.55.0
+

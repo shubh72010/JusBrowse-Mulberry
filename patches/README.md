@@ -4,7 +4,7 @@ One `.patch` per logical change, against the pinned mozilla-central revision in
 `config/upstream.yml`. Lexicographic order = apply order
 (`./scripts/apply-patches.sh` runs `git am` over `patches/*.patch`).
 
-## Current stack (13 patches, cleaned 2026-09-17)
+## Current stack (15 patches, cleaned 2026-09-17)
 
 | # | File | What |
 |---|------|------|
@@ -21,6 +21,8 @@ One `.patch` per logical change, against the pinned mozilla-central revision in
 | 11 | `0011-...-application-identity-release-signing` | `com.jusdots.jusbrowse` applicationId + release signing via env keystore |
 | 12 | `0012-...-toolbar-background-toggle-defaults` | Toolbar-background toggle + adjusted defaults |
 | 13 | `0013-...-UI-color-palettes-...` | Catppuccin/TokyoNight/Gruvbox/Nord/Dracula/Rosé Pine themes + matching wallpapers/icons + restart confirmation |
+| 14 | `0014-...-hide-preference-dividers-...` | Hide `PreferenceFragmentCompat` dividers in segmented lists (divider sat glued under group-end card) |
+| 15 | `0015-...-segmented-cards-for-Compose-awesomebar-...` | Segmented cards for Compose awesomebar suggestions (recent searches, search suggestions); provider layer untouched |
 
 Dropped during cleanup: status-bar background toggle add/fix/remove
 (old 0034/0035/0040 — net zero, verified by tree comparison), DotPill

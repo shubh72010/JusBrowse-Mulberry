@@ -1,0 +1,184 @@
+From 5fb33449dba2d8a6048137bdfdefe576fc389e67 Mon Sep 17 00:00:00 2001
+From: Shubh <shubhaggarwalva@gmail.com>
+Date: Fri, 18 Sep 2026 12:20:03 +0530
+Subject: [PATCH] JusBrowse: segmented cards for Compose awesomebar suggestions
+
+---
+ .../awesomebar/internal/SuggestionGroup.kt    |   3 +-
+ .../awesomebar/internal/Suggestions.kt        | 107 +++++++++++++++---
+ 2 files changed, 91 insertions(+), 19 deletions(-)
+
+diff --git a/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/SuggestionGroup.kt b/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/SuggestionGroup.kt
+index 9cd84235ce73..69e05d423037 100644
+--- a/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/SuggestionGroup.kt
++++ b/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/SuggestionGroup.kt
+@@ -21,10 +21,11 @@ import mozilla.components.compose.browser.awesomebar.AwesomeBarColors
+ internal fun SuggestionGroup(
+     title: String,
+     colors: AwesomeBarColors,
++    modifier: Modifier = Modifier,
+ ) {
+     Box(
+         modifier =
+-            Modifier.fillMaxWidth().pointerInput(Unit) {
++            modifier.fillMaxWidth().pointerInput(Unit) {
+                 detectTapGestures(onTap = { /* No-op to consume click */ })
+             }
+     ) {
+diff --git a/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/Suggestions.kt b/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/Suggestions.kt
+index 5a095c5169da..85dbeb649433 100644
+--- a/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/Suggestions.kt
++++ b/mobile/android/android-components/components/compose/awesomebar/src/main/java/mozilla/components/compose/browser/awesomebar/internal/Suggestions.kt
+@@ -5,11 +5,20 @@
+ package mozilla.components.compose.browser.awesomebar.internal
+ 
+ import android.os.Parcelable
++import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.calculateEndPadding
++import androidx.compose.foundation.layout.calculateStartPadding
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.LazyListState
+-import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.MaterialTheme
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.RememberObserver
+@@ -18,7 +27,10 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.snapshotFlow
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Shape
++import androidx.compose.ui.platform.LocalLayoutDirection
+ import androidx.compose.ui.platform.testTag
++import androidx.compose.ui.unit.dp
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.distinctUntilChangedBy
+ import kotlinx.parcelize.Parcelize
+@@ -52,33 +64,48 @@ internal fun Suggestions(
+ 
+     ScrollHandler(state, onScroll)
+ 
++    val layoutDirection = LocalLayoutDirection.current
+     LazyColumn(
+         state = state,
+         modifier = modifier.testTag(AwesomeBarTestTags.SUGGESTIONS),
+-        contentPadding = contentPadding,
++        verticalArrangement = Arrangement.spacedBy(SUGGESTION_GAP),
++        contentPadding =
++            PaddingValues(
++                start = SUGGESTION_HORIZONTAL_INSET + contentPadding.calculateStartPadding(layoutDirection),
++                top = SUGGESTION_GAP + contentPadding.calculateTopPadding(),
++                end = SUGGESTION_HORIZONTAL_INSET + contentPadding.calculateEndPadding(layoutDirection),
++                bottom = SUGGESTION_GAP + contentPadding.calculateBottomPadding(),
++            ),
+     ) {
+-        suggestions.forEach { (group, suggestions) ->
++        var firstVisibleItem = true
++        suggestions.forEach { (group, groupSuggestions) ->
++            val visibleSuggestions = groupSuggestions.take(group.limit)
+             val title = group.title
+-            if (suggestions.isNotEmpty() && !title.isNullOrEmpty() && group.displayTitle) {
++            if (visibleSuggestions.isNotEmpty() && !title.isNullOrEmpty() && group.displayTitle) {
++                val topInset = if (firstVisibleItem) 0.dp else GROUP_TITLE_TOP_GAP
+                 item(ItemKey.SuggestionGroup(group.id)) {
+-                    SuggestionGroup(title, colors)
++                    SuggestionGroup(title, colors, Modifier.padding(top = topInset))
+                 }
++                firstVisibleItem = false
+             }
+ 
+-            items(
+-                items = suggestions.take(group.limit),
+-                key = { suggestion -> ItemKey.Suggestion(group.id, suggestion.provider.id, suggestion.id) },
+-            ) { suggestion ->
+-                SuggestionItem(
+-                    suggestion = suggestion,
+-                    group = group,
+-                    colors = colors,
+-                    orientation = orientation,
+-                    onSuggestionClicked = onSuggestionClicked,
+-                    onAutoComplete = onAutoComplete,
+-                    onRemoveClicked = onRemoveClicked,
+-                )
++            itemsIndexed(
++                items = visibleSuggestions,
++                key = { _, suggestion -> ItemKey.Suggestion(group.id, suggestion.provider.id, suggestion.id) },
++            ) { index, suggestion ->
++                SegmentedSuggestionCard(index = index, count = visibleSuggestions.size) {
++                    SuggestionItem(
++                        suggestion = suggestion,
++                        group = group,
++                        colors = colors,
++                        orientation = orientation,
++                        onSuggestionClicked = onSuggestionClicked,
++                        onAutoComplete = onAutoComplete,
++                        onRemoveClicked = onRemoveClicked,
++                    )
++                }
+             }
++            if (visibleSuggestions.isNotEmpty()) firstVisibleItem = false
+         }
+     }
+ 
+@@ -108,6 +135,50 @@ internal fun Suggestions(
+     }
+ }
+ 
++private val SUGGESTION_GAP = 2.dp
++private val SUGGESTION_HORIZONTAL_INSET = 12.dp
++private val GROUP_TITLE_TOP_GAP = 14.dp
++
++// Corner radii mirror Fenix segmented lists (SegmentedList.segmentedShape).
++private val SEGMENTED_LARGE_CORNER = 28.dp
++private val SEGMENTED_SMALL_CORNER = 6.dp
++
++private fun segmentedSuggestionShape(index: Int, count: Int): Shape =
++    when {
++        count <= 1 -> RoundedCornerShape(SEGMENTED_LARGE_CORNER)
++        index == 0 ->
++            RoundedCornerShape(
++                topStart = SEGMENTED_LARGE_CORNER,
++                topEnd = SEGMENTED_LARGE_CORNER,
++                bottomEnd = SEGMENTED_SMALL_CORNER,
++                bottomStart = SEGMENTED_SMALL_CORNER,
++            )
++        index == count - 1 ->
++            RoundedCornerShape(
++                topStart = SEGMENTED_SMALL_CORNER,
++                topEnd = SEGMENTED_SMALL_CORNER,
++                bottomEnd = SEGMENTED_LARGE_CORNER,
++                bottomStart = SEGMENTED_LARGE_CORNER,
++            )
++        else -> RoundedCornerShape(SEGMENTED_SMALL_CORNER)
++    }
++
++@Composable
++private fun SegmentedSuggestionCard(
++    index: Int,
++    count: Int,
++    content: @Composable () -> Unit,
++) {
++    Card(
++        shape = segmentedSuggestionShape(index = index, count = count),
++        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
++        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
++        modifier = Modifier.fillMaxWidth(),
++    ) {
++        content()
++    }
++}
++
+ /** An effect for handling scrolls in a [LazyColumn]. Will invoke [onScroll] at the beginning of a scroll gesture. */
+ @Composable
+ private fun ScrollHandler(
+-- 
+2.55.0
+

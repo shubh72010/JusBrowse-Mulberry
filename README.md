@@ -82,7 +82,7 @@ rm -rf source/mozilla-central
 
 ```
 JusBrowse-Mul/
-├── patches/            # 13 logical patches (lexicographic order = apply order)
+├── patches/            # 15 logical patches (lexicographic order = apply order)
 │   ├── 0001-...-branding-rename-app_name.patch
 │   ├── 0002-...-startpage-background-home-wiring.patch
 │   ├── 0003-...-web-rendering-shell-...-always-static.patch
@@ -96,6 +96,8 @@ JusBrowse-Mul/
 │   ├── 0011-...-application-identity-release-signing.patch
 │   ├── 0012-...-toolbar-background-toggle-defaults.patch
 │   ├── 0013-...-UI-color-palettes-....patch
+│   ├── 0014-...-hide-preference-dividers-....patch
+│   ├── 0015-...-segmented-cards-for-Compose-awesomebar-....patch
 │   └── README.md       # per-patch table + policy
 ├── config/
 │   ├── mozconfig       # copied to source/mozilla-central/mozconfig before build
@@ -143,7 +145,7 @@ required, no unrelated refactor, must be reversible.
 |------|---------|
 | Shell / start | `0001` app_name, `0002` startpage bg, `0003` web shell |
 | Branding | `0006` strings+locales, `0009` wordmark, `0010` single-logo purge |
-| UI | `0004` segmented lists, `0007` 2nd shortcut, `0008` wallpapers, `0012` toolbar toggle, `0013` palettes |
+| UI | `0004` segmented lists (RecyclerView), `0007` 2nd shortcut, `0008` wallpapers, `0012` toolbar toggle, `0013` palettes, `0014` hide preference dividers, `0015` segmented awesomebar (Compose) |
 | Privacy | `0005` telemetry hard-disable |
 | Identity | `0011` applicationId + release signing |
 
